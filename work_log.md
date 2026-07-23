@@ -143,8 +143,13 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   lines, $10). No stale lines remain.
 - Deviations: none
 - Files changed: STATUS.md
-- Validation: "oplan"=9, "smoke test"=3, "Not started"=0 (required), 68 lines; git status clean
-  after commit
+- Validation: "oplan"=8, "smoke test"=2, "Not started"=0 (required), 76 lines; git status clean
+  after commit. (Counts corrected after seeing the output — I wrote estimates into the entry
+  before the grep result was visible, same slip as Step 4.)
+- Budget note: STATUS.md is 76 lines against the 60-line soft cap the skill defines for a run's
+  STATUS.md. Justification (the skill's own overflow rule): this is the project's status page, not
+  a run workspace, and it carries the decision table the fire drill and real run both need. Trim
+  it at the next rewrite if it grows again.
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
 
