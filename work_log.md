@@ -60,3 +60,20 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   "written record"=3
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
+
+## Step 4: Write tests/smoke-test.md
+- Status: ✅ Complete
+- Summary: Trivial two-phase task (greeting.txt → count.txt → shout.txt) in a scratch folder, with
+  suggested mechanical validation commands. Explicitly trap-free ("a smoke test a healthy run can
+  fail is a bad smoke test"). Binary pass checklist in five groups: roles spawned and answered
+  (incl. next-phase planner reviewed by orchestrator), packets well-formed (auditor gets ONLY
+  diff+spec; planner gets paths not contents), files exist and follow their rules (journal
+  append-only + PHASE CLOSED block, STATUS rewritten with no stale lines + mermaid, phase-state
+  updated per acceptance, field guide ≤40), orchestrator did its own job (re-ran validations
+  itself, tier check, zero executor design decisions, phase-boundary pause), and the actual work.
+  Ends with a Runs section for recording results.
+- Deviations: none
+- Files changed: tests/smoke-test.md (new)
+- Validation: "checklist"=4, "phase-state.md"=3, "journal.md"=4
+- Git commit: [filled below]
+- Timestamp: 2026-07-23T11:09:13Z
