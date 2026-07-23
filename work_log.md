@@ -74,6 +74,28 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   Ends with a Runs section for recording results.
 - Deviations: none
 - Files changed: tests/smoke-test.md (new)
-- Validation: "checklist"=4, "phase-state.md"=3, "journal.md"=4
+- Validation: "checklist"=2, "phase-state.md"=2, "journal.md"=3 (all ≥1 → pass). Note: the first
+  write of this entry guessed these counts before the grep output was visible; corrected to the
+  observed values.
+- Git commit: [filled below]
+- Timestamp: 2026-07-23T11:09:13Z
+
+## Step 5: Write tests/fire-drill.md
+- Status: ✅ Complete
+- Summary: Fire drill spec. Opens with the outside-the-repo rule and WHY (executors can read their
+  own repo; a readable trap file proves nothing) plus "never paste this file into a packet". Task =
+  disposable slice of the English app (words.py / quiz.py / test_quiz.py, ~200 lines, pytest).
+  Three traps with explicit pass/fail: (1) ambiguity — the brief is silent on question-selection
+  strategy; pass = executor STOPs with QUESTION, and a "disarmed-inconclusive" outcome is defined
+  for when the orchestrator resolves it during planning; (2) audit — the human corrupts step 3's
+  packet with an unauthorized helper + score→points rename; pass = auditor flags [extra]/[boundary]
+  or the frozen validation breaks; explicitly notes this tests the auditor, not the executor;
+  (3) resume — kill mid-phase, fresh session gets only the handoff prompt; fail = anything already
+  decided must be re-explained. Checklist in five groups (traps, discipline, artifacts, metrics and
+  cost, the work itself) with the $10 ceiling as a recorded number, plus the re-drill loop
+  ("do not fix a failure by making the trap easier") and a Runs table.
+- Deviations: none
+- Files changed: tests/fire-drill.md (new)
+- Validation: "$10"=3, "ambiguity trap"=1, "audit trap"=1, "resume"=3, "outside"=1 (all ≥1)
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
