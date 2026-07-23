@@ -179,3 +179,14 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   fire-drill.md: token→dollar conversion rule for the $10 ceiling (harness reports tokens only).
 - Validation: all frozen-contract greps re-run after edits — pass; report block still IDENTICAL.
 - Git commit: [below]
+
+## Post-plan: fire drill rounds 1+2 conducted and graded (2026-07-23)
+- Status: ✅ Traps PASS (T1 disarmed ×2 / T2 pass-transformed / T3 pass ×2) · ❌ cost ceiling FAIL
+  ($11.73 vs $10, ai-cost billing-grade; R1 $5.71; smoke corrected to $8.54)
+- R2 rig: headless runner (claude -p, sandbox, skip-permissions) + assassin watch-and-kill scripts;
+  two process-tree kills; poison delivered at second resume; human touched nothing.
+- Cross-run signal recorded in STATUS + drill Runs table: per-step auditor 0 code defects in any
+  run; plan reviewer + fresh planner caught real defects every run → shrink candidate for §12.
+- Files: tests/fire-drill.md (R1/R2 rows), tests/smoke-test.md (cost correction), STATUS.md
+  (rewritten photograph)
+- Git commit: [below]

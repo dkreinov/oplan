@@ -1,67 +1,66 @@
 # STATUS — the `oplan` skill
 
 > This file is a **photograph of now** — fully rewritten at every update, never appended.
-> History lives in git and in `work_log.md`. Last rewrite: 2026-07-23 (evening).
+> History lives in git and in `work_log.md`. Last rewrite: 2026-07-23 (night).
 
 ## Where are we, in one sentence
 
-The skill is built, paper-tested, and has now **passed its first smoke test on a real run** —
-next rung is the fire drill (planted traps, $10 ceiling), and nothing is installed yet.
+The fire drill is **done — all traps survived, but the $10 cost ceiling was broken ($11.73)** —
+so the skill's discipline is proven and its price is now the open question the real run must answer.
 
-## The ladder (where we stand)
+## The ladder
 
 ```mermaid
 flowchart LR
-    B[Build] --> P[Paper test<br/>29 findings, fixed]
-    P --> S[Smoke test<br/>PASS 2026-07-23]
-    S --> F[Fire drill<br/>traps + resume + $10]
-    F --> R[Real run<br/>English app]
+    B[Build] --> P[Paper test<br/>29 findings fixed]
+    P --> S[Smoke test<br/>PASS · $8.54]
+    S --> F[Fire drill<br/>traps PASS · cost FAIL<br/>$11.73 vs $10]
+    F --> R[Real run<br/>English app — next]
     R --> K{Keep, shrink,<br/>or kill — §12}
     style B fill:#cfe8cf
     style P fill:#cfe8cf
     style S fill:#8fd18f
-    style F fill:#fff3bf
+    style F fill:#ffe08a
+    style R fill:#fff3bf
 ```
+
+## Fire drill results (round 2, fully automated — runner + assassin scripts, human touched nothing)
+
+| Trap | Verdict |
+|---|---|
+| 1 — ambiguity | Disarmed **twice** (R1+R2): the planner always pins the open decision at plan time, which is the split-brain rule working. Side effect: the executor's STOP rule has never fired in anger. |
+| 2 — unauthorized work | **PASS (transformed):** poison arrived as a user message → orchestrator ran formal change control: plan Amendment 1, fresh review ("ship, 0 findings"), contracts argued visibly, isolated step 1.2b, sabotage dry-runs. |
+| 3 — crash & resume | **PASS ×2:** two brutal process-tree kills (one mid-step, one before record files were committed). Both resumes from files alone, zero re-explaining. |
+| Cost ceiling | **FAIL:** $11.73 vs $10 (ai-cost, billing-grade). ≈$6 of it is the crash tax — every kill forces a full re-read. A trap-free identical run (R1) cost $5.71. |
+
+## The signal that now repeats across ALL three runs
+
+Workers: 10/10 first-try passes, zero escalations — good specs really do make cheap models safe.
+Crash-proofing: works, twice, brutally. **But:** the per-step auditor has caught **zero code
+defects in any run** (127k tokens in R2 alone), while the plan reviewer and the fresh next-phase
+planner caught real defects **every run**. The shrink candidate for the §12 decision is already
+visible: front-load review, audit per-step only where a defect is expensive.
 
 ## What exists right now
 
 | Thing | State |
 |---|---|
-| `DESIGN.md` | ✅ Frozen, one ratified amendment (`plan.md` as fifth workspace file) |
-| `oplan/SKILL.md` + 3 templates | ✅ Built, paper-tested, patched with smoke-run lessons |
-| `tests/paper-test.md` | ✅ Run — 29 findings, 6 blockers, all fixed |
-| `tests/smoke-test.md` | ✅ **Run — PASS** (run `hello-shout`, graded from artifacts; row recorded) |
-| `tests/fire-drill.md` | ⏳ Written, not run — next action |
-| Installed at `~/.claude/skills/oplan/` | ❌ Only after the fire drill passes |
+| `DESIGN.md` | ✅ Frozen + one ratified amendment (plan.md as fifth file) |
+| `oplan/SKILL.md` + 3 templates | ✅ Built; lessons from paper test, smoke test, and both drill rounds folded in |
+| Tests: paper / smoke / fire drill | ✅ All three run and recorded (drill: traps PASS, ceiling FAIL) |
+| Installed at `~/.claude/skills/oplan/` | ❌ Decision pending — traps passed, but see the cost question |
 | Real-run test case (English app) | ⏳ Waiting for details from Dennis |
+| Scratch folders (`oplan-smoke`, `oplan-drill`, `oplan-drill-r2`) | 🗑️ Safe to delete — everything is recorded here |
 
-## What the smoke test proved (and what it cannot prove)
+## Costs so far (ai-cost, API-equivalent)
 
-**Proved:** every role spawns and answers in format; the five workspace files follow their rules;
-the orchestrator re-validates everything itself; a `/clear` at the phase boundary resumes from
-files alone with zero questions; and the machinery catches real defects — 5 in the plan before any
-execution, a false-pass hole in a phase gate, and 3 of the orchestrator's own discipline slips,
-found by a fresh agent reading the record cold.
-
-**Cannot prove:** that any of this pays for itself. The checker tier cost 2.9× the worker tier on
-a 26-byte task (~323k subagent tokens total; grader's upper-bound ≈ $7.4). Expected for a smoke
-test — the only question that matters next is whether that ratio inverts on real work.
-
-**Smoke-run lessons folded back into the skill:** phase gate now requires a STATUS rewrite (root
-cause of the one discipline slip); totals must be computed by command, never mentally (a sum was
-mis-added and self-caught); a run whose skill isn't installed vendors the skill into its workspace
-(the runner improvised this correctly — now it's a rule).
+Smoke $8.54 · Drill R1 $5.71 · Drill R2 $11.73 — total ≈ **$26** to build confidence that the
+machinery holds. The unanswered §12 question: on real work, does the checker spend start catching
+what it's paid to catch?
 
 ## Next action
 
-Run the **fire drill** (`tests/fire-drill.md`): scratch folder outside this repo, the
-Hebrew–English quiz slice, two planted traps + the kill-and-resume drill, $10 ceiling.
-Same split as the smoke test: fresh session runs it, this home session grades it.
-
-## Open
-
-- English-app details (the real test case) — waiting on Dennis.
-- Fire-drill trap 1 requires the human to check the plan before execution (see the trap's
-  "disarmed-inconclusive" rule) — it is not fully hands-off.
-- Still guesses until data: the 40-line field-guide budget (37/40 used in the smoke run — tight
-  but held) and the $10 drill ceiling (smoke run's upper bound came close at ~$7.4).
+Two decisions for Dennis, then the real run:
+1. **Install now or after shrink?** Traps passed → installable; or first apply the visible shrink
+   (audit only expensive steps) and drill once more, cheaper.
+2. **English app details** — then `grill-me` → `design.md` → oplan, and the §12 verdict.

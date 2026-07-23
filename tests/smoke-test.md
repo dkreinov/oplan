@@ -123,3 +123,6 @@ Findings against the SKILL text, all fixed after grading:
 Cost: 323,117 subagent tokens (worker 72k · checker 208k · planner 43k); checker 2.9× worker —
 expected on a 26-byte task; dollars `unavailable` from inside the run (correct per §12);
 grader's conservative upper bound ≈ $7.4 if every token were priced at output rates.
+**Correction (same day):** actual billing-grade cost from ai-cost = **$8.54** — the "conservative
+upper bound" was not conservative, because subagent token counts don't decompose into output-rate
+pricing. Lesson: never hand-convert tokens to dollars; use ai-cost.
