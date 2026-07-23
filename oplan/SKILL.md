@@ -180,7 +180,9 @@ v0.1 has one auditor lens; a second codebase-consistency lens is a v0.2 idea.
 > **The audited diff is scoped, not the whole tree:**
 > `git diff <last accepted commit> -- <exactly the files in the step's list>`.
 > Without the pathspec the auditor sees your own writes to the workspace files and reports them
-> as boundary violations by an executor that never touched them.
+> as boundary violations by an executor that never touched them. And for files the step CREATES,
+> run `git add -N <file>` first — a brand-new untracked file otherwise produces an EMPTY diff,
+> and the auditor will truthfully report that the executor did nothing.
 
 **Layer 3 — the phase gate.** Phase acceptance criteria are written during planning, before any
 executor exists, and live in `plan.md`. They are the run's held-out test: work is not allowed to
