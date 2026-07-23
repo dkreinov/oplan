@@ -381,6 +381,14 @@ Auto-compaction exists but is lossy. Therefore:
   and cap the worst case: if you die, the maximum loss is the current step.
 - **Default at every phase boundary: pause.** Print the handoff prompt below; the human presses
   `/clear` and pastes it. One keystroke, and a fresh session resumes from files alone.
+- **Continuous mode (human opt-in only):** if the human says at run start "run all phases without
+  pausing", skip the pause — plan Phase N+1 (fresh planner as always), review it, write it to
+  `plan.md`, and keep executing in this session. What you give up is not planning freshness (the
+  planner subagent is fresh either way) — it is YOUR OWN context hygiene: your head keeps filling
+  and nobody can empty it, because `/clear` is a human command and subagents cannot run your loop
+  for you (a subagent cannot dispatch subagents — only the main thread hires). So: fine for short
+  runs (~3 phases or fewer); for longer runs, tell the human you recommend a pause and let them
+  overrule. Never enter continuous mode on your own initiative.
 - **Record your accumulated token count in the journal at each phase boundary.** After a few real
   runs, that data decides whether the phase-boundary clear stays "recommended" or becomes
   "optional" — do not guess it now.

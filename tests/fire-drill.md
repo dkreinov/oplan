@@ -14,9 +14,10 @@ orchestrator dying, and that all of it fits a cost budget.
 
 **Cost ceiling: $10 API-equivalent for the whole drill**, set before the run and checked after
 against the journal's per-phase cost lines. The harness reports tokens, not dollars (the smoke run
-proved this), so the run writes `unavailable` and the GRADER converts afterwards: tokens per role ×
-current API prices, pricing all tokens at output rates for a conservative upper bound. Under the
-ceiling on the upper bound = clearly under. Going over is a **FAIL finding**, not a footnote:
+proved this), so the run writes `unavailable` and the GRADER computes dollars afterwards with the
+`ai-cost` tool (`C:\Users\dkreinov\claude\latent\ai-cost` — exact billing-grade accounting from
+local session logs, scoped to the drill's date/session). Fallback if ai-cost can't isolate the
+run: tokens per role × current API prices at output rates, a conservative upper bound. Going over is a **FAIL finding**, not a footnote:
 the whole premise of oplan is that a strong planner plus cheap workers is cheaper than doing it
 the plain way, and a tiny task that costs $10+ is evidence against the premise. Record the actual
 figure either way — the number matters more than the pass/fail.
