@@ -41,3 +41,22 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   SKILL.md = IDENTICAL
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
+
+## Step 3: Write oplan/templates/auditor.md and next-phase-planner.md
+- Status: ✅ Complete
+- Summary: Auditor template — hard rule that it sees ONLY diff + step spec (and explicitly NOT the
+  executor's report, so it checks the work not the worker's story), the two-sided question
+  (nothing less = missing; nothing more = unrequested work is a finding even when it is good), a
+  5-point checking procedure, and a capped verdict format (match/mismatch, typed findings each
+  citing file + violated spec line, confidence with what couldn't be checked). Next-phase-planner
+  template — reads the written record ONLY, with a note to the orchestrator not to paste context
+  because spoon-feeding hides holes in the record; skeleton treated as intention not instruction;
+  6 planning rules (decide everything now, one validation per step, dependency order, disjoint
+  write sets, simplest thing, acceptance criteria before steps); output structure ends with
+  BLOCKERS and RECORD GAPS — the completeness test of the file discipline.
+- Deviations: none
+- Files changed: oplan/templates/auditor.md (new), oplan/templates/next-phase-planner.md (new)
+- Validation: "only the diff and the step spec"=1, "nothing more, nothing less"=1,
+  "written record"=3
+- Git commit: [filled below]
+- Timestamp: 2026-07-23T11:09:13Z
