@@ -167,3 +167,15 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   conformance); the three Step 6 deviations listed in that entry.
 - Status: Complete — skill built and paper-tested; smoke test and fire drill are written but not
   yet run; nothing installed to ~/.claude/skills/ yet (by design).
+
+---
+
+## Post-plan: smoke test graded (2026-07-23)
+- Status: ✅ PASS — graded from artifacts in ~/claude/scratch/oplan-smoke (bytes, commits, journal,
+  phase-state, field guide all verified directly; runner's claims not taken on faith)
+- Fixes applied from grading: SKILL.md §10 phase gate now rewrites STATUS (root cause of the
+  in-run staleness); §12 totals-by-command rule (mis-added sum, self-caught); §5 vendored-skill
+  rule (canonized runner improvisation). smoke-test.md: Runs row + re-sum checklist line.
+  fire-drill.md: token→dollar conversion rule for the $10 ceiling (harness reports tokens only).
+- Validation: all frozen-contract greps re-run after edits — pass; report block still IDENTICAL.
+- Git commit: [below]

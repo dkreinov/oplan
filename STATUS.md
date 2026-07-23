@@ -1,76 +1,67 @@
 # STATUS — the `oplan` skill
 
 > This file is a **photograph of now** — fully rewritten at every update, never appended.
-> History lives in git and in `work_log.md`. Last rewrite: 2026-07-23.
+> History lives in git and in `work_log.md`. Last rewrite: 2026-07-23 (evening).
 
 ## Where are we, in one sentence
 
-The skill is **written and paper-tested** — every deliverable exists in this repo; the next
-action is to run the smoke test in a scratch folder, and nothing is installed yet.
+The skill is built, paper-tested, and has now **passed its first smoke test on a real run** —
+next rung is the fire drill (planted traps, $10 ceiling), and nothing is installed yet.
+
+## The ladder (where we stand)
+
+```mermaid
+flowchart LR
+    B[Build] --> P[Paper test<br/>29 findings, fixed]
+    P --> S[Smoke test<br/>PASS 2026-07-23]
+    S --> F[Fire drill<br/>traps + resume + $10]
+    F --> R[Real run<br/>English app]
+    R --> K{Keep, shrink,<br/>or kill — §12}
+    style B fill:#cfe8cf
+    style P fill:#cfe8cf
+    style S fill:#8fd18f
+    style F fill:#fff3bf
+```
 
 ## What exists right now
 
 | Thing | State |
 |---|---|
-| `DESIGN.md` | ✅ Frozen — still the single source of truth |
-| `oplan/SKILL.md` | ✅ The skill: roles, hard rules, files, verification, tiers, procedure, metrics |
-| `oplan/templates/executor-packet.md` | ✅ The 7-element worker packet |
-| `oplan/templates/auditor.md` | ✅ Fresh-eyes checker (diff + spec only) |
-| `oplan/templates/next-phase-planner.md` | ✅ Fresh planner (files only) |
-| `tests/paper-test.md` | ✅ Written **and run** — 29 findings, 6 blockers, all fixed |
-| `tests/smoke-test.md` | ✅ Written — ⏳ not run yet |
-| `tests/fire-drill.md` | ✅ Written — ⏳ not run yet (traps + resume drill + $10 ceiling) |
-| `plans/oplan-build-plan.md`, `work_log.md` | ✅ The build's own plan and record |
-| Installed at `~/.claude/skills/oplan/` | ❌ Deliberately not yet — install only after the tests pass |
+| `DESIGN.md` | ✅ Frozen, one ratified amendment (`plan.md` as fifth workspace file) |
+| `oplan/SKILL.md` + 3 templates | ✅ Built, paper-tested, patched with smoke-run lessons |
+| `tests/paper-test.md` | ✅ Run — 29 findings, 6 blockers, all fixed |
+| `tests/smoke-test.md` | ✅ **Run — PASS** (run `hello-shout`, graded from artifacts; row recorded) |
+| `tests/fire-drill.md` | ⏳ Written, not run — next action |
+| Installed at `~/.claude/skills/oplan/` | ❌ Only after the fire drill passes |
 | Real-run test case (English app) | ⏳ Waiting for details from Dennis |
 
-## What the skill does, simply
+## What the smoke test proved (and what it cannot prove)
 
-One strong manager plans everything and decides everything; cheap workers each get one
-completely-written job in a fresh head; separate fresh-eyed checkers verify the plan and every
-result; all memory lives in files, so any agent — including the manager — can die and be replaced.
+**Proved:** every role spawns and answers in format; the five workspace files follow their rules;
+the orchestrator re-validates everything itself; a `/clear` at the phase boundary resumes from
+files alone with zero questions; and the machinery catches real defects — 5 in the plan before any
+execution, a false-pass hole in a phase gate, and 3 of the orchestrator's own discipline slips,
+found by a fresh agent reading the record cold.
 
-```mermaid
-flowchart TD
-    USER([Dennis]) -->|reads| ST[STATUS.md<br/>photograph of now]
-    ORCH[Orchestrator — main thread<br/>Opus · makes ALL decisions] -->|writes| ST
-    ORCH -->|1. plan checked by| REV[Plan Reviewer<br/>fresh eyes]
-    ORCH -->|2. one packet at a time| EXEC[Executor<br/>Sonnet, clean context<br/>unsure? STOP and ask]
-    EXEC -->|report, max 30 lines| ORCH
-    ORCH -->|3. scoped diff + spec| AUD[Auditor<br/>fresh eyes<br/>match or mismatch?]
-    ORCH -->|4. phase done| NEXT[Next-Phase Planner<br/>fresh Opus, files only]
-    NEXT -->|plan reviewed by orchestrator| ORCH
-    ORCH -.->|checkpoint every acceptance| FILES[(plan.md · journal.md<br/>phase-state.md · field-guide/index.md)]
-    NEXT -.->|reads| FILES
-```
+**Cannot prove:** that any of this pays for itself. The checker tier cost 2.9× the worker tier on
+a 26-byte task (~323k subagent tokens total; grader's upper-bound ≈ $7.4). Expected for a smoke
+test — the only question that matters next is whether that ratio inverts on real work.
 
-## Decided (were the open questions in DESIGN.md §15)
-
-| Question | Decision |
-|---|---|
-| Skill name | `oplan` |
-| Report format | STATUS · DID · VALIDATION · SURPRISES · DEVIATIONS · QUESTION · METRICS — hard cap 30 lines |
-| Field-guide budget | 40 lines, **soft** — over budget needs a one-line justification in the journal |
-| Models | Generic tiers + a per-harness binding table. Claude: orchestrator/planner Opus, executor/auditor Sonnet, ladder Haiku < Sonnet < Opus < Fable |
-| Fire-drill cost ceiling | $10 API-equivalent, recorded either way |
-
-## What the paper test changed (the design was not enough on its own)
-
-The biggest miss: **the plan itself was not a file.** Every step spec and validation command lived
-in the manager's head, which breaks the crash-only rule the design insists on — so a fifth
-workspace file, `plan.md`, now exists. Also added: a defined packet for the plan reviewer, an
-account of *what was built* in the journal (not just scores), an end to every retry loop, and
-diffs scoped to the step's own files so the auditor doesn't blame workers for the manager's writes.
+**Smoke-run lessons folded back into the skill:** phase gate now requires a STATUS rewrite (root
+cause of the one discipline slip); totals must be computed by command, never mentally (a sum was
+mis-added and self-caught); a run whose skill isn't installed vendors the skill into its workspace
+(the runner improvised this correctly — now it's a rule).
 
 ## Next action
 
-Run the **smoke test** (`tests/smoke-test.md`) in a scratch folder outside this repo — trivial
-task, proves the plumbing moves. Then the **fire drill** (`tests/fire-drill.md`) with its planted
-traps, then the **real run** on the English app, then compare metrics against a plain plan-skill
-baseline and decide: keep, shrink, or kill (DESIGN.md §12).
+Run the **fire drill** (`tests/fire-drill.md`): scratch folder outside this repo, the
+Hebrew–English quiz slice, two planted traps + the kill-and-resume drill, $10 ceiling.
+Same split as the smoke test: fresh session runs it, this home session grades it.
 
 ## Open
 
 - English-app details (the real test case) — waiting on Dennis.
-- Two numbers are guesses until data replaces them: the 40-line field-guide budget and the $10
-  drill ceiling. Both are recorded in metrics precisely so the first runs can correct them.
+- Fire-drill trap 1 requires the human to check the plan before execution (see the trap's
+  "disarmed-inconclusive" rule) — it is not fully hands-off.
+- Still guesses until data: the 40-line field-guide budget (37/40 used in the smoke run — tight
+  but held) and the $10 drill ceiling (smoke run's upper bound came close at ~$7.4).

@@ -87,6 +87,7 @@ drill.
 
 - [ ] `greeting.txt`, `count.txt`, `shout.txt` all exist with the exact expected contents
 - [ ] All three validation commands pass when run by hand afterwards
+- [ ] Metric totals in the journal re-add correctly (re-sum them — the first run mis-added one)
 
 ## Recording the result
 
@@ -100,4 +101,25 @@ then fix, then re-run — so the discovery becomes permanent instead of living i
 
 ## Runs
 
-_(none yet — this file was written before the first run)_
+### 2026-07-23 — first smoke run: **PASS** (graded from artifacts by the home session)
+
+Run `hello-shout` in `~/claude/scratch/oplan-smoke/`. Orchestrator Opus, workers/checkers Sonnet,
+per binding. All checklist lines pass; deliverables verified byte-exact by the grader (`xxd`),
+tree clean, 8 commits, resume across `/clear` at the phase boundary worked with zero questions.
+
+What the machinery caught during its own run (the reason it exists): 5 plan-review findings before
+any execution (incl. a validation that killed the enclosing shell on its failure path), a
+false-pass hole in a phase gate (found by the fresh planner, reproduced in a scratch repo), and
+5 record gaps — 3 of them the orchestrator's own file-discipline failures, incl. a stale STATUS.md.
+
+Findings against the SKILL text, all fixed after grading:
+1. **Stale STATUS root cause:** §10's phase-gate step never said "rewrite STATUS.md" → added.
+2. **Arithmetic gap:** PHASE 1 CLOSED total mis-added (175573 vs correct 183979); self-caught at
+   run close, corrected append-only — but nothing re-checks orchestrator arithmetic → §12 now
+   requires totals computed by command; new checklist line above.
+3. **Good improvisation canonized:** the runner copied the skill into `<workspace>/skill/` so the
+   record could govern its own resume → now a §5 rule.
+
+Cost: 323,117 subagent tokens (worker 72k · checker 208k · planner 43k); checker 2.9× worker —
+expected on a 26-byte task; dollars `unavailable` from inside the run (correct per §12);
+grader's conservative upper bound ≈ $7.4 if every token were priced at output rates.

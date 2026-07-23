@@ -110,7 +110,9 @@ process is not information, only its result is.
 
 **Workspace:** create `.oplan/<run-name>/` at the repo root at the start of the run. All five
 files live there. If a `design.md` exists, copy it in — the next-phase planner is told to read
-`<workspace>/design.md` and must not depend on a path only you remember.
+`<workspace>/design.md` and must not depend on a path only you remember. If the skill itself is
+not installed in the environment, also copy `SKILL.md` and `templates/` into `<workspace>/skill/`:
+the record must be self-governing, or a fresh session cannot resume the run's own procedure.
 
 | File | Job | Rule |
 |---|---|---|
@@ -329,7 +331,9 @@ In words:
 9. **Accept:** commit the step's files (`step <phase>.<n>: <title>`), append to the journal,
    update `phase-state.md` (this is your checkpoint), rewrite `STATUS.md`.
 10. **At the phase gate:** check the acceptance criteria written in `plan.md` before the phase
-    started, promote field-guide lessons, record phase metrics including your own context size.
+    started, promote field-guide lessons, record phase metrics including your own context size,
+    and rewrite `STATUS.md` — a phase close is an update like any other, and it is exactly where
+    the first smoke run left STATUS stale.
 11. **Have a fresh planner plan Phase N+1** from files alone, then review its plan yourself.
     Its `BLOCKERS` and `RECORD GAPS` are not commentary: **answer every blocker in writing and
     patch the file each record gap names**, before dispatching the first step of the new phase.
@@ -440,7 +444,9 @@ PHASE <N> CLOSED
 for each subagent result, and your own context size from the harness's context/cost display (in
 Claude Code: `/context` and `/cost`). If the harness cannot report a number, write `unavailable`.
 Never estimate a metric — a made-up number is worse than a missing one, because the kill decision
-below is made from these figures.
+below is made from these figures. Compute every total with a command (`awk`, `python`), never in
+your head — nothing in this machinery re-checks your arithmetic, and the first smoke run mis-added
+a six-number sum.
 
 The six numbers that matter (and why): first-try pass rate and retries say whether specs are
 good enough; escalations say where you misjudged difficulty; cost split by model says whether
