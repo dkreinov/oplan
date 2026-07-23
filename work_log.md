@@ -132,3 +132,33 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
   = IDENTICAL; Step 4–5 greps re-run and pass
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
+
+## Step 7: Rewrite STATUS.md + final cleanup
+- Status: ✅ Complete
+- Summary: STATUS.md rewritten as a fresh photograph — every deliverable listed with its real
+  state (paper test written AND run; smoke/fire drill written, not run; install deliberately not
+  done), updated mermaid showing the five workspace files and the scoped-diff audit, a "Decided"
+  table replacing the old open-questions list, a short section on what the paper test changed
+  (plan.md as the headline miss), next action = smoke test, and two honestly-flagged guesses (40
+  lines, $10). No stale lines remain.
+- Deviations: none
+- Files changed: STATUS.md
+- Validation: "oplan"=9, "smoke test"=3, "Not started"=0 (required), 68 lines; git status clean
+  after commit
+- Git commit: [filled below]
+- Timestamp: 2026-07-23T11:09:13Z
+
+---
+
+## Final Summary
+- Total steps: 7 · Completed: 7 · Failed: 0 · Skipped: 0
+- Key decisions made: skill named `oplan`; report contract with METRICS line, 30-line cap;
+  40-line soft-cap field guide with logged justification; generic PLANNER/CHECKER/WORKER tiers
+  with a per-harness binding table (Claude: Opus/Sonnet, ladder up to Fable); $10 fire-drill
+  ceiling; plan.md added as a fifth workspace file (crash-only requirement found by the paper
+  test); plan-reviewer specified inline rather than as a fourth template (DESIGN.md §14.2 freezes
+  the count at three).
+- Deviations from plan: two subagents for the paper test instead of one (second lens = DESIGN.md
+  conformance); the three Step 6 deviations listed in that entry.
+- Status: Complete — skill built and paper-tested; smoke test and fire drill are written but not
+  yet run; nothing installed to ~/.claude/skills/ yet (by design).
