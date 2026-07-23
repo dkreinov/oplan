@@ -93,6 +93,12 @@ packet one model tier up. Escalations are logged; they are the misclassification
 
 ## 7. Files (per run, in the target project's workspace)
 
+> **Amendment (2026-07-23, approved by Dennis):** a fifth file, `plan.md` (current phase in full,
+> later-phase skeletons, phase acceptance criteria), was added during the build. The paper test
+> showed the original four files violate §8's own crash-only principle: without it, every step
+> spec and frozen validation command lives only in the orchestrator's head, and mid-phase resume
+> is impossible.
+
 | File | Job | Rule |
 |---|---|---|
 | `journal.md` | history — everything that happened | append-only; allowed to grow; raw input for next-phase planner |
