@@ -95,6 +95,9 @@ failed with a one-line note on what was fixed. A failed smoke test means the ski
 fix `oplan/SKILL.md` or the templates, note the lesson, and re-run. Re-running is cheap; that is
 the point of a trivial task.
 
+If a run reveals a problem the checklist never asked about, **add a checklist line for it first**,
+then fix, then re-run — so the discovery becomes permanent instead of living in one person's memory.
+
 ## Runs
 
 _(none yet — this file was written before the first run)_
