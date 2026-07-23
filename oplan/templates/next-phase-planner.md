@@ -19,11 +19,12 @@ and no memory of the earlier phases. Everything you are allowed to use is on dis
 Read these, in this order:
 
 1. `{{workspace}}/phase-state.md` — where the run stands right now
-2. `{{workspace}}/journal.md` — everything that happened in earlier phases (read the last phase
+2. `{{workspace}}/plan.md` — the plan so far: earlier phases in full, and the Phase {{N+1}}
+   skeleton you are here to expand
+3. `{{workspace}}/journal.md` — everything that happened in earlier phases (read the last phase
    in full; skim earlier ones)
-3. `{{workspace}}/field-guide/index.md` — the curated lessons; treat these as binding
-4. `{{workspace}}/design.md` — the frozen WHAT {{or "not present for this run"}}
-5. The Phase {{N+1}} skeleton, quoted below
+4. `{{workspace}}/field-guide/index.md` — the curated lessons; treat these as binding
+5. `{{workspace}}/design.md` — the frozen WHAT {{or "not present for this run"}}
 6. The codebase itself, as needed
 
 **You may not use anything else.** There is no chat history to ask about and no earlier agent to
@@ -33,8 +34,8 @@ Blockers section of your output), do not invent an answer and do not guess what 
 
 ## The Phase {{N+1}} skeleton (written before this phase's facts were known)
 
-{{paste the skeleton: title, goal, expected inputs from the previous phase, expected outputs,
-likely files/systems, validation gate, risks, open questions}}
+It is in `plan.md` under Phase {{N+1}} — title, goal, expected inputs from the previous phase,
+expected outputs, likely files/systems, validation gate, risks, open questions. Read it there.
 
 Treat the skeleton as an intention, not an instruction. It was written before Phase {{N}} ran. If
 the record shows it is now wrong — a dependency turned out different, a step is already done, a

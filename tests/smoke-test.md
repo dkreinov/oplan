@@ -53,7 +53,7 @@ drill.
 
 ### Roles spawned and answered
 
-- [ ] A **plan reviewer** subagent ran on the Phase 1 plan before any execution, and returned findings (or an explicit "no findings")
+- [ ] A **plan reviewer** subagent ran on the Phase 1 plan before any execution, and returned the `VERDICT` + `FINDINGS` format from `SKILL.md` §10
 - [ ] Each step was executed by an **executor** subagent in a fresh context — one at a time, never two at once
 - [ ] Every executor returned the report format from `SKILL.md` §9: STATUS / DID / VALIDATION / SURPRISES / DEVIATIONS / METRICS present, ≤30 lines
 - [ ] An **auditor** subagent ran after every step and returned VERDICT + FINDINGS + CONFIDENCE
@@ -67,7 +67,9 @@ drill.
 
 ### Files exist and follow their rules
 
-- [ ] `journal.md` exists, is append-only (earlier entries unmodified), and has one metrics block per accepted step
+- [ ] The workspace `.oplan/<run-name>/` was created and all five files live in it
+- [ ] `plan.md` exists, was written before the first dispatch, and contains every step's frozen validation command plus the phase acceptance criteria
+- [ ] `journal.md` exists, is append-only (earlier entries unmodified), and has one metrics block per accepted step (including `did` / `surprises` / `deviations`)
 - [ ] `journal.md` has a `PHASE 1 CLOSED` block with cost, orchestrator context size, and field-guide fullness
 - [ ] `STATUS.md` exists, is written in plain language, and contains a mermaid diagram
 - [ ] `STATUS.md` was **rewritten** at each update — no appended history, no stale line (e.g. no "not started" for a finished step)

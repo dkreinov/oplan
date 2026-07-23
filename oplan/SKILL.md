@@ -56,7 +56,7 @@ flowchart TD
     AUD -->|verdict| ORCH
     ORCH -->|4. phase finished| NEXT[NEXT-PHASE PLANNER<br/>fresh strong model<br/>reads FILES ONLY]
     NEXT -->|draft plan for orchestrator review| ORCH
-    ORCH -.->|checkpoint after every acceptance| FILES[(journal.md · phase-state.md<br/>field-guide/index.md)]
+    ORCH -.->|checkpoint after every acceptance| FILES[(plan.md · journal.md<br/>phase-state.md · field-guide/index.md)]
     NEXT -.->|reads| FILES
     EXEC -.->|receives field guide| FILES
 ```
@@ -64,7 +64,7 @@ flowchart TD
 | Role | Who runs it | Context | Job |
 |---|---|---|---|
 | Orchestrator | main thread, PLANNER tier | long-lived, ages | Plans, decides everything, dispatches, re-runs validation, writes files, gates phases |
-| Plan reviewer | subagent, CHECKER tier | fresh | Attacks the plan before any work starts — gaps, ambiguity, wrong order |
+| Plan reviewer | subagent, CHECKER tier | fresh | Attacks the plan before any work starts — gaps, ambiguity, wrong order (packet defined in §10) |
 | Executor | subagent, WORKER tier | fresh, clean | Does exactly one step from a packet; returns a capped report |
 | Auditor | subagent, CHECKER tier | fresh | Sees ONLY diff + step spec; answers "does this match the spec, nothing more, nothing less?" |
 | Next-phase planner | subagent, PLANNER tier | fresh | Plans Phase N+1 from the written record ONLY; the orchestrator reviews its plan |
@@ -97,9 +97,9 @@ process is not information, only its result is.
    decision the spec doesn't answer — decide it now, in the plan, and write it down. Dispatching
    a step that contains an open question is a bug.
 3. **The executor never self-certifies.** A step is accepted only when YOU re-run its frozen
-   validation command in a clean state, and the auditor returns a match.
+   validation command in a clean state (§7), and the auditor returns a match.
 4. **Crash-only.** If a fact exists only in your head and not in a file, that is a bug in the
-   run. Fix it by writing the file, immediately.
+   run. Fix it by writing the file, immediately. This is why the plan itself is a file (§5).
 5. **Sequential phases.** Later phases exist as skeletons from the start; only the current phase
    is detailed. Phase N+1 is detailed only after Phase N execution is finished, when the facts
    are real instead of imagined.
@@ -108,15 +108,32 @@ process is not information, only its result is.
 
 ## 5. Files — the shared memory
 
-All four live in the target project's workspace (a working folder for the run, not this skill's
-folder).
+**Workspace:** create `.oplan/<run-name>/` at the repo root at the start of the run. All five
+files live there. If a `design.md` exists, copy it in — the next-phase planner is told to read
+`<workspace>/design.md` and must not depend on a path only you remember.
 
 | File | Job | Rule |
 |---|---|---|
+| `plan.md` | The plan: current phase in full, later phases as skeletons | The steps, their frozen validation commands, frozen contracts, non-goals, tiers, and the phase acceptance criteria. Written before the first dispatch; a step's spec is amended only by you, and every amendment is logged in the journal. |
 | `journal.md` | History: everything that happened | Append-only. Allowed to grow. Raw input for the next-phase planner. |
-| `STATUS.md` | A photograph of NOW, for the human | **Rewritten** every update, never appended. Simple language + a mermaid diagram. No stale lines. Orchestrator is the only writer. |
+| `STATUS.md` | A photograph of NOW, for the human | **Rewritten** every update, never appended. Simple language + a mermaid diagram. No stale lines. Line budget 60 lines (same soft-cap rule as §6). Orchestrator is the only writer. |
 | `phase-state.md` | "Where are we" for agents | Updated at every step acceptance — this is the checkpoint. |
-| `field-guide/index.md` | Curated lessons, injected into EVERY agent packet | Line-budgeted (§6). Orchestrator promotes journal entries into it at phase boundaries. |
+| `field-guide/index.md` | Curated lessons, injected into every executor and planner packet — **never** into an auditor packet (its blindness is the instrument, §7) | Line-budgeted (§6). Orchestrator promotes journal entries into it at phase boundaries. |
+
+**Why `plan.md` is a file and not just your context:** every step spec, validation command and
+contract you hold in your head is a fact that dies with you. The plan is the biggest such fact.
+It is also what the auditor's spec excerpt and the next-phase planner's skeleton are copied from.
+
+**`phase-state.md` must contain** (nothing more — it is a pointer, not a story):
+
+```
+CURRENT: phase <N> "<name>", next step <N>.<n>
+PLAN: <workspace>/plan.md
+ACCEPTED: <step id — commit hash> ... (one line each)
+FROZEN CONTRACTS IN FORCE: <names, types, schemas, formats — the things nobody may change>
+OPEN QUESTIONS: <question — who must answer it> (or "none")
+BLOCKED: <what stopped the run, or "no">
+```
 
 **STATUS.md vs journal.md — the rule that prevents duplication:** if a fact is *history*, it
 lives in the journal; if a fact is *current*, it lives in STATUS. A fact is never in both.
@@ -128,7 +145,8 @@ trusts it.
 ## 6. The field guide
 
 `field-guide/index.md` is the small pile of lessons this project has learned, injected into every
-agent's packet — so a brand-new worker knows the local gotchas without reading the whole history.
+executor and planner packet — so a brand-new worker knows the local gotchas without reading the
+whole history. It never goes to the auditor.
 
 - **Budget: 40 lines.** This is a *soft* cap with a price: you may exceed it only if you write a
   one-line justification into `journal.md` (for example: `field guide at 46/40 because: the
@@ -138,42 +156,62 @@ agent's packet — so a brand-new worker knows the local gotchas without reading
   this one?" That question *is* the curation.
 - Promote lessons at phase boundaries, not continuously. A "lesson" is something a future agent
   would get wrong without being told — not a summary of what happened.
-- Record field-guide fullness (`N/40`) and any overflow in the phase-boundary metrics (§9).
+- Record field-guide fullness (`N/40`) and any overflow in the phase-boundary metrics (§12).
 
-## 7. Verification — three layers plus a ladder
+## 7. Verification — three layers, a ladder, and a stop
 
 **Layer 1 — the frozen mechanical gate.** Every step has a validation command, written by the
 planner *at plan time*, before any executor exists, and then frozen. The executor may run it
-while iterating, but acceptance happens only when the ORCHESTRATOR re-runs it in a clean state.
-A validation command that cannot be run mechanically (a "looks good") is not a validation
-command; rewrite it until it is.
+while iterating, but acceptance happens only when the ORCHESTRATOR re-runs it. A validation
+command that cannot be run mechanically (a "looks good") is not a validation command; rewrite it
+until it is.
+
+> **"Clean state" means:** a fresh shell you control, run against the executor's changes, with any
+> build/test cache the executor may have warmed removed. It does NOT mean a clean git tree — the
+> executor's uncommitted changes are exactly what you are validating.
 
 **Layer 2 — the auditor (output lens).** A fresh subagent receives ONLY the diff and the step
 spec. Its question is narrow on purpose: *does the work match the spec — nothing more, nothing
 less?* Both halves matter — extra unrequested work is a finding, exactly like missing work.
 v0.1 has one auditor lens; a second codebase-consistency lens is a v0.2 idea.
 
+> **The audited diff is scoped, not the whole tree:**
+> `git diff <last accepted commit> -- <exactly the files in the step's list>`.
+> Without the pathspec the auditor sees your own writes to the workspace files and reports them
+> as boundary violations by an executor that never touched them.
+
 **Layer 3 — the phase gate.** Phase acceptance criteria are written during planning, before any
-executor exists. They are the run's held-out test: work is not allowed to redefine what "done"
-means after the fact.
+executor exists, and live in `plan.md`. They are the run's held-out test: work is not allowed to
+redefine what "done" means after the fact.
 
-**The escalation ladder — driven by you, never by the worker:**
+**The escalation ladder — driven by you, never by the worker.** Escalation moves one rung up the
+**model** ladder in §8, not up the tier list (under the v0.1 binding, WORKER and CHECKER are the
+same model, so a tier-space reading would be a no-op). A step starts on its assigned tier. If its
+validation fails twice, you re-dispatch **the same packet, unchanged**, one rung up, and log it
+as `tier: WORKER (Opus, escalated)` — the role does not change, only the horsepower.
 
-```
-Haiku < Sonnet < Opus < Fable
-```
+Do not rewrite the spec on the first escalation: if the same spec succeeds one rung up, the spec
+was fine and the tier was wrong; if it fails again, the spec is the problem and needs your
+attention. Log every escalation with the step id — escalations are the data that says where cheap
+models can and cannot be trusted in this project.
 
-A step starts on its assigned tier. If its validation fails twice, you re-dispatch **the same
-packet, unchanged**, one rung up. Do not rewrite the spec on the first escalation — if the same
-spec succeeds one rung up, the spec was fine and the tier was wrong; if it fails again, the spec
-is the problem and needs your attention. Log every escalation with the step id: escalations are
-the signal that you classified a step's difficulty wrongly, which is exactly the data that tells
-you where cheap models can and cannot be trusted in this project.
+**Where the loop ends (there is always a terminal state).** Re-dispatching is not unbounded. STOP
+the run, write the blocker into `STATUS.md` and `phase-state.md`, and hand back to the human when
+any of these happens:
+
+- validation still fails after an escalation to the **top rung** of the ladder;
+- the **same step** comes back `mismatch` from the auditor **twice**;
+- an executor returns `STATUS: failed` twice on the same step;
+- a report arrives that does not follow the required format twice in a row (log the malformed
+  report, re-dispatch once with the format restated, then stop).
+
+A stopped run is a success of the machinery, not a failure of it: the alternative is burning
+tokens in a loop nobody is watching.
 
 ## 8. Tiers and model binding
 
 The skill speaks in **tiers**, so it ports to any harness. Bind tiers to concrete models once,
-in a table, and change nothing else when moving between tools.
+in this table, and change nothing else when moving between tools.
 
 | Tier | Meaning | Used by |
 |---|---|---|
@@ -190,15 +228,15 @@ in a table, and change nothing else when moving between tools.
 | Plan reviewer | Sonnet |
 | Auditor | Sonnet |
 | Executor | Sonnet (Haiku only after metrics show a class of steps is safe for it) |
-| Escalation ladder | Haiku < Sonnet < Opus < Fable |
+| **Escalation ladder** | **Haiku < Sonnet < Opus < Fable** |
 
 Fable sits at the top rung: reachable by escalation, or chosen deliberately for a phase whose
 planning is genuinely hard. It is roughly twice Opus's cost, so it is not a default — the honest
 metric is cost per completed task, not cost per token.
 
-**Porting to another harness** (Codex, etc.): add a row set to this table mapping PLANNER /
-CHECKER / WORKER to that harness's models, and a ladder ordering. Nothing else in this file
-changes.
+**Porting to another harness** (Codex, etc.): replace this section's two tables with that
+harness's models and its own ladder ordering. Everything outside this section is written in
+tier names and needs no edit.
 
 ## 9. The executor packet
 
@@ -206,7 +244,7 @@ Every dispatch is built from `templates/executor-packet.md` and contains exactly
 things — no more (context is expensive), no less (a missing piece forces a worker to guess):
 
 1. **The spec-complete step:** goal, files it may touch, commands, and the frozen validation command.
-2. **Relevant frozen contracts only** — the design-doc excerpt this step needs, not the whole plan.
+2. **Relevant frozen contracts only** — the excerpt this step needs, not the whole plan.
 3. **The write-set boundary and non-goals:** only these files; no refactoring; no fixing adjacent
    code; never touch tests or validation commands. (Exception: if the step's job IS writing tests,
    say so — and have a different agent review those tests.)
@@ -226,58 +264,108 @@ METRICS: retries=N, validation_first_try=yes|no
 (hard cap: 30 lines total)
 ```
 
-If a report arrives that does not follow this format, that is itself a finding — log it and
-re-dispatch with the format restated.
+A malformed report is itself a finding: log it, re-dispatch once with the format restated, and
+stop the run if the second one is malformed too (§7).
 
 ## 10. The orchestrator's procedure
 
 ```mermaid
 flowchart TD
-    A[Read design.md + any existing files] --> B[Plan Phase 1 in full<br/>later phases = skeletons only]
+    A[Read design.md + any existing files] --> B[Plan Phase 1 in full into plan.md<br/>steps + validations + contracts + non-goals<br/>+ phase acceptance criteria<br/>later phases = skeletons only]
     B --> C[PLAN REVIEWER: fresh eyes attack the plan]
     C --> D{Findings?}
     D -->|yes| B
-    D -->|no| E[Write journal + STATUS + phase-state]
+    D -->|no| E[Write workspace files:<br/>plan · journal · STATUS · phase-state]
     E --> F[Dispatch ONE executor packet]
-    F --> G{Report says<br/>stopped-with-question?}
-    G -->|yes| H[YOU answer it, update the spec<br/>log the intervention, re-dispatch]
+    F --> G{Report status?}
+    G -->|stopped-with-question| H[YOU answer it, amend plan.md,<br/>log the intervention, re-dispatch]
     H --> F
-    G -->|no| I[Re-run the frozen validation yourself]
+    G -->|failed| X{Second failure<br/>on this step?}
+    X -->|no| F
+    X -->|yes| STOPRUN[STOP the run<br/>write blocker to STATUS + phase-state<br/>hand back to human]
+    G -->|done| I[Re-run the frozen validation yourself<br/>in a clean state]
     I --> J{Passed?}
-    J -->|no, 1st or 2nd time| F
-    J -->|no, twice already| K[Same packet, one tier up<br/>log the escalation]
+    J -->|no, 1st failure| R1[Revert the step's files<br/>to last accepted commit] --> F
+    J -->|no, 2nd failure| K[Same packet, one rung up the model ladder<br/>log the escalation]
     K --> F
-    J -->|yes| L[AUDITOR: diff + spec only]
-    L --> M{Match?}
-    M -->|no| F
-    M -->|yes| N[ACCEPT: append journal,<br/>update phase-state, rewrite STATUS]
+    K -.->|already at top rung| STOPRUN
+    J -->|yes| L[AUDITOR: scoped diff + spec only]
+    L --> M{Verdict?}
+    M -->|mismatch, 1st time| R2[Revert the step's files, fix the spec] --> F
+    M -->|mismatch, 2nd time| STOPRUN
+    M -->|match| N[ACCEPT: commit the step,<br/>append journal, update phase-state,<br/>rewrite STATUS]
     N --> O{More steps in phase?}
     O -->|yes| F
-    O -->|no| P[Phase gate: check acceptance criteria]
+    O -->|no| P[Phase gate: check the acceptance<br/>criteria written in plan.md]
     P --> Q[Promote lessons to field guide<br/>record phase metrics + context size]
-    Q --> R[Phase boundary: pause,<br/>print handoff prompt]
-    R --> S[NEXT-PHASE PLANNER: fresh, files only]
-    S --> T[Orchestrator reviews that plan] --> F
+    Q --> S[NEXT-PHASE PLANNER: fresh, files only]
+    S --> T[Review its plan · answer every BLOCKER<br/>· patch every RECORD GAP · write plan.md]
+    T --> U[Phase boundary: pause,<br/>print handoff prompt] --> F
 ```
 
 In words:
 
-1. **Plan Phase 1 completely.** Every step gets: goal, exact files, commands, frozen validation
-   command, and its tier. Later phases get skeletons only.
-2. **Send the plan to a fresh plan reviewer** before any execution. Fix what it finds.
-3. **Write the files** (journal, STATUS, phase-state) before dispatching anything. If you crash
-   here, the run must still be recoverable.
+1. **Plan Phase 1 completely, into `plan.md`.** Every step gets: goal, exact files, commands,
+   frozen validation command, the frozen contracts it needs, its non-goals, its budgets, and its
+   tier — that is exactly the set of slots the executor packet requires, so a step is not finished
+   being planned until all of them are filled. The phase also gets **mechanical acceptance
+   criteria**, written now, before any executor exists. Later phases get skeletons only.
+2. **Send the plan to a fresh plan reviewer** before any execution (packet below). Fix what it finds.
+3. **Write the workspace files** (`plan.md`, `journal.md`, `STATUS.md`, `phase-state.md`) before
+   dispatching anything. If you crash here, the run must still be recoverable.
 4. **Dispatch one packet.** Wait. Read only the report.
-5. **If the worker stopped with a question:** answer it yourself, patch the step spec so the
-   answer is now written down, log it as a human/orchestrator intervention, re-dispatch.
-6. **Re-run the frozen validation yourself,** in a clean state. The worker's word is not evidence.
-7. **Two failures → same packet, one tier up.** Log the escalation.
-8. **Send diff + spec to the auditor.** Mismatch → back to step 4 with a corrected spec.
-9. **Accept:** append to journal, update phase-state (this is your checkpoint), rewrite STATUS.md.
-10. **At the phase gate:** check the acceptance criteria written before the phase started, promote
-    field-guide lessons, record phase metrics including your own context size.
-11. **Pause at the phase boundary** (§11), then have a fresh planner plan Phase N+1 from files
-    alone, and review its plan yourself.
+5. **If the worker stopped with a question:** answer it yourself, amend the step spec in `plan.md`
+   so the answer is now written down, log it as an intervention, re-dispatch.
+6. **Re-run the frozen validation yourself,** in a clean state (§7). The worker's word is not
+   evidence.
+7. **On failure: revert first, then retry.** Restore the step's files to the last accepted commit
+   (`git checkout <last accepted commit> -- <the step's file list>`) before every re-dispatch — a
+   fresh executor is told it has no history, so it cannot know what a previous attempt left behind.
+   Second failure → same packet, one rung up (§7), and log the escalation.
+8. **Send the scoped diff + spec to the auditor** (§7, Layer 2). Mismatch → revert, fix the spec,
+   re-dispatch once; a second mismatch on the same step stops the run. `match` with
+   `CONFIDENCE: low` → supply the missing evidence (an extra file, a second lens) and re-audit
+   once; if it is still low, accept and log it as a risk in the journal.
+9. **Accept:** commit the step's files (`step <phase>.<n>: <title>`), append to the journal,
+   update `phase-state.md` (this is your checkpoint), rewrite `STATUS.md`.
+10. **At the phase gate:** check the acceptance criteria written in `plan.md` before the phase
+    started, promote field-guide lessons, record phase metrics including your own context size.
+11. **Have a fresh planner plan Phase N+1** from files alone, then review its plan yourself.
+    Its `BLOCKERS` and `RECORD GAPS` are not commentary: **answer every blocker in writing and
+    patch the file each record gap names**, before dispatching the first step of the new phase.
+    Write the resulting plan into `plan.md`.
+12. **Pause at the phase boundary** (§11) and print the handoff prompt.
+
+### The plan reviewer packet (fill in and send; CHECKER tier)
+
+> You are reviewing a plan before any of it is executed. Fresh eyes are the whole point — you did
+> not write it and you have no history with it.
+>
+> **The plan:** {{paste plan.md — current phase in full}}
+> **The design it must satisfy:** {{design.md excerpt, or "none — the brief is the plan's goal section"}}
+> **Local lessons:** {{field-guide/index.md}}
+>
+> Each step will be executed by a cheap model in a clean context that sees only that step. So hunt
+> for the things that will break under those conditions:
+> 1. **Undecided decisions** — anything a worker would have to guess: an unspecified name, format,
+>    strategy, or default. These are the expensive defects; list them first.
+> 2. **Unrunnable validation** — any validation that is not a mechanical pass/fail command.
+> 3. **Wrong order or hidden dependency** — a step that needs something a later step produces.
+> 4. **Fuzzy boundaries** — a step whose file list cannot possibly be enough for its goal, or
+>    whose goal invites work outside the list.
+> 5. **Missing steps** — setup, dependencies, directories, migrations that nothing creates.
+> 6. **Acceptance criteria** that do not actually test the phase's goal.
+>
+> Return exactly:
+> ```
+> VERDICT: ship | fix-first
+> FINDINGS:
+>   - [undecided|validation|order|boundary|missing|acceptance] step <id> — <what is wrong, one line>
+>   - ... (or "none")
+> (hard cap: 25 lines)
+> ```
+> `fix-first` if there is even one `undecided` finding — those are exactly what this gate exists
+> to catch.
 
 ## 11. Context and phase boundaries
 
@@ -296,7 +384,7 @@ Auto-compaction exists but is lossy. Therefore:
 ```text
 --- HANDOFF PROMPT (paste into fresh session) ---
 Continue run from: <workspace>/phase-state.md
-Read first: phase-state.md, then journal.md (last phase), then field-guide/index.md, then design.md
+Read first: phase-state.md, then plan.md, then journal.md (last phase), then field-guide/index.md, then design.md
 Resume at: Phase <N+1> — plan it first (fresh planner), then execute
 Execution mode: <step-by-step|autonomous>
 Model: <PLANNER tier model>
@@ -309,9 +397,9 @@ Before executing:
 --- END HANDOFF PROMPT ---
 ```
 
-**The test that this actually works** is the resume drill in `tests/fire-drill.md`: kill the
-orchestrator mid-phase and resume from files alone. If that fails, the file discipline is broken,
-not the drill.
+**The test that this actually works** is the resume drill in the project's `tests/fire-drill.md`:
+kill the orchestrator mid-phase and resume from files alone. If that fails, the file discipline is
+broken, not the drill.
 
 ## 12. Metrics — what every run collects
 
@@ -319,14 +407,22 @@ Append to `journal.md` after every accepted step:
 
 ```
 STEP <phase>.<n> <title>
-  tier: <WORKER|CHECKER|PLANNER> (<model>)
+  tier: <WORKER|CHECKER|PLANNER> (<model>[, escalated])
+  did: <the accepted report's DID lines, verbatim>
+  surprises: <the report's SURPRISES, verbatim>
+  deviations: <the report's DEVIATIONS, verbatim>
   validation_first_try: yes|no
   retries: <N>
-  escalations: <N> (<from tier> -> <to tier>, reason)
+  escalations: <N> (<from model> -> <to model>, reason)
   tokens: worker=<N>, checker=<N>, orchestrator_delta=<N>
   interventions: <N> (<reason: unanswered-question|bad-spec|trap|other>)
+  commit: <hash>
   accepted: <ISO timestamp>
 ```
+
+The `did` / `surprises` / `deviations` lines are what make the journal "everything that happened"
+rather than a scoreboard — they are the next-phase planner's only account of what was built and
+what bit us, and the raw material the field guide is curated from.
 
 And at every phase boundary:
 
@@ -339,6 +435,12 @@ PHASE <N> CLOSED
   orchestrator_context: <N> tokens
   field_guide: <N>/40 lines (<overflow justification, or "within budget">)
 ```
+
+**Where the numbers come from:** token and cost figures come from the harness's own usage readout
+for each subagent result, and your own context size from the harness's context/cost display (in
+Claude Code: `/context` and `/cost`). If the harness cannot report a number, write `unavailable`.
+Never estimate a metric — a made-up number is worse than a missing one, because the kill decision
+below is made from these figures.
 
 The six numbers that matter (and why): first-try pass rate and retries say whether specs are
 good enough; escalations say where you misjudged difficulty; cost split by model says whether
@@ -354,7 +456,10 @@ it. Machinery that cannot show its value is fluff.
 
 | File | Use |
 |---|---|
-| `SKILL.md` | This file — the whole procedure |
+| `SKILL.md` | This file — the whole procedure, including the plan-reviewer packet (§10) |
 | `templates/executor-packet.md` | Fill in and send to a worker |
 | `templates/auditor.md` | Fill in and send to the fresh-eyes checker |
 | `templates/next-phase-planner.md` | Fill in and send to the fresh planner at a phase boundary |
+
+The test ladder (paper test, smoke test, fire drill) lives in the development project's `tests/`
+folder, not inside the installed skill.

@@ -99,3 +99,36 @@ SESSION_MODE: autonomous · Subagents: allowed (standing permission) · Model: O
 - Validation: "$10"=3, "ambiguity trap"=1, "audit trap"=1, "resume"=3, "outside"=1 (all ≥1)
 - Git commit: [filled below]
 - Timestamp: 2026-07-23T11:09:13Z
+
+## Step 6: Run the paper test and fix findings
+- Status: ✅ Complete
+- Summary: Two fresh-context Opus subagents in parallel (role-play walkthrough + DESIGN.md
+  conformance). 29 findings, 6 blockers, all applied. Blockers: (1) the plan lived only in the
+  orchestrator's context — violated crash-only and made mid-phase resume impossible → added
+  plan.md as a fifth workspace file; (2) plan reviewer had no packet/output format → defined
+  inline in SKILL.md §10; (3) journal recorded metrics but never what was built → added
+  did/surprises/deviations to the per-step block; (4) "field guide into EVERY agent packet"
+  contradicted auditor isolation → auditor excluded in both places; (5) no terminal failure state
+  → four stop conditions + STOP node in the flowchart; (6) "the diff for this step" unobtainable →
+  commit on accept + diff scoped by the step's file list. Plus: revert-before-re-dispatch, metric
+  sourcing rule ("unavailable", never estimate), escalation timing, "clean state" defined,
+  phase-state schema, low-confidence audit handling, ladder defined in model space with escalated
+  logging, planning checklist extended to all packet slots + phase acceptance criteria,
+  BLOCKERS/RECORD GAPS given a consumer, DEVIATIONS narrowed, retry-vs-check separated, workspace
+  path, STATUS line budget. Added tests/paper-test.md (ladder rung 1 belongs under tests/) with
+  this run recorded.
+- Deviations: (a) Used TWO subagents instead of the planned one — second lens was DESIGN.md
+  conformance; found 3 unique findings the role-play pass missed. Within the standing subagent
+  permission, both read-only. (b) The "plan reviewer has no template" blocker was fixed INLINE in
+  SKILL.md rather than as a fourth template file, because DESIGN.md §14.2 freezes the deliverable
+  at three templates — conservative option, no frozen contract broken. (c) plan.md is a fifth
+  workspace file where DESIGN.md §7 lists four; it is required BY §8's crash-only principle, so it
+  fills a gap rather than contradicting the design. Flagged to the user rather than treated as a
+  silent change.
+- Files changed: oplan/SKILL.md (rewritten), oplan/templates/executor-packet.md,
+  oplan/templates/auditor.md, oplan/templates/next-phase-planner.md, tests/smoke-test.md,
+  tests/fire-drill.md, tests/paper-test.md (new)
+- Validation: all Step 1–3 greps re-run and still pass; report block SKILL.md vs executor packet
+  = IDENTICAL; Step 4–5 greps re-run and pass
+- Git commit: [filled below]
+- Timestamp: 2026-07-23T11:09:13Z

@@ -132,7 +132,8 @@ sentence is the fix.
 
 ### Artifacts
 
-- [ ] `journal.md` — append-only, one metrics block per accepted step, `PHASE 1 CLOSED` block present
+- [ ] `plan.md` — written before the first dispatch; every step in it has a runnable frozen validation command; the trap-1 answer was amended into it (not just decided in chat)
+- [ ] `journal.md` — append-only, one metrics block per accepted step (including `did` / `surprises` / `deviations`), `PHASE 1 CLOSED` block present
 - [ ] `STATUS.md` — rewritten each time, plain language, mermaid diagram, **zero stale lines** (read it as if you knew nothing: does it describe the run as it actually is?)
 - [ ] `phase-state.md` — current after every acceptance; it alone answered "where are we" during the resume drill
 - [ ] `field-guide/index.md` — ≤40 lines, or over budget **with** a one-line justification in `journal.md`
@@ -152,7 +153,7 @@ sentence is the fix.
 ## When a trap fails
 
 A failed trap is the drill working, not the drill breaking. The loop is: fix the wording in
-`oplan/SKILL.md` or the relevant template → write the lesson into this repo's field-guide notes →
+`oplan/SKILL.md` or the relevant template → write the lesson into the `## Runs` table below →
 delete the scratch folder → re-run. The task is tiny and disposable precisely so this loop is
 cheap. Do not "fix" a failure by making the trap easier.
 

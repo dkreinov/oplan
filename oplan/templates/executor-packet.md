@@ -50,9 +50,11 @@ license to deviate.
 - **No refactoring.** Not even obviously good refactoring.
 - **Do not fix adjacent code**, dead code, typos, formatting, or lint complaints that your change
   did not cause. Mention them in SURPRISES instead.
-- **Never modify tests or validation commands.** {{If this step's job IS writing tests, replace
-  this line with: "This step's deliverable IS the tests — write them to spec. You may not modify
-  any pre-existing test, and a separate agent will review the tests you write."}}
+- **Never modify tests or validation commands.**
+<!-- If this step's job IS writing tests, replace the line above with:
+     "This step's deliverable IS the tests — write them to spec. You may not modify any
+     pre-existing test, and a separate agent will review the tests you write." -->
+
 - **No extra features, no speculative flexibility, no configurability nobody asked for.** Work
   that exceeds the spec is a defect here, exactly like work that falls short of it.
 - **Step-specific non-goals:** {{explicit exclusions — the things a reasonable person might
@@ -83,7 +85,8 @@ in `QUESTION:`. Leave the work in a clean state (no half-finished edits) and say
 
 ## 6. Budgets
 
-- **Retry limit:** {{N}} attempts at making the validation pass. After that, return
+- **Retry limit:** {{N}} fix-and-retry cycles after a failing validation — running the validation
+  command to check where you stand costs nothing and is not a retry. After the limit, return
   `STATUS: failed` with what you tried — do not keep grinding.
 - **Time/token bound:** {{bound}}.
 - Do not read the whole repository. Read what §1 and §2 point you at, plus what those files
@@ -111,6 +114,8 @@ Field notes:
   you did not observe.
 - **SURPRISES** — things the orchestrator does not know yet: the adjacent bug you left alone, the
   spec that fit badly, the dependency that was already broken. This is how the project learns.
-- **DEVIATIONS** — anything you did differently from the spec, and why. If a deviation would break
-  a frozen contract, that is not a deviation: stop and ask instead (§4).
+- **DEVIATIONS** — only mechanical differences forced by reality: a path that turned out to be
+  named differently, a version flag the tool required. Anything design-shaped — a choice, a
+  default, a name nobody specified — is not a deviation, it is a QUESTION (§4). If you are unsure
+  which one you are looking at, it is a QUESTION.
 - **METRICS** — plain counts. `validation_first_try=yes` only if it passed on your first run.

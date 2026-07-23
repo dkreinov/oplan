@@ -37,8 +37,13 @@ frozen validation command, frozen contracts excerpt, boundaries and non-goals}}
 
 ## The diff
 
+<!-- Orchestrator: paste the SCOPED diff only —
+     git diff <last accepted commit> -- <exactly the files in the step's list>
+     An unscoped diff includes your own workspace writes, and the auditor will correctly report
+     them as boundary violations by an executor that never touched them. -->
+
 ```diff
-{{git diff for this step}}
+{{scoped git diff for this step}}
 ```
 
 ## How to check
