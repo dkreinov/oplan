@@ -1,66 +1,67 @@
 # STATUS — the `oplan` skill
 
 > This file is a **photograph of now** — fully rewritten at every update, never appended.
-> History lives in git and in `work_log.md`. Last rewrite: 2026-07-23 (night).
+> History lives in git and in `work_log.md`. Last rewrite: 2026-07-24.
 
 ## Where are we, in one sentence
 
-The fire drill is **done — all traps survived, but the $10 cost ceiling was broken ($11.73)** —
-so the skill's discipline is proven and its price is now the open question the real run must answer.
+**The real run happened and succeeded** — a 5-phase oplan run built and deployed the English app
+end-to-end (live on Vercel, 146/146 tests, graded from artifacts) — and the §12 keep/shrink/kill
+decision is now in Dennis's hands, with the grader recommending **KEEP, unshrunk**.
 
-## The ladder
+## The ladder — complete
 
 ```mermaid
 flowchart LR
     B[Build] --> P[Paper test<br/>29 findings fixed]
-    P --> S[Smoke test<br/>PASS · $8.54]
-    S --> F[Fire drill<br/>traps PASS · cost FAIL<br/>$11.73 vs $10]
-    F --> R[Real run<br/>English app — next]
-    R --> K{Keep, shrink,<br/>or kill — §12}
+    P --> S[Smoke PASS<br/>$8.54]
+    S --> F[Fire drill<br/>traps PASS<br/>ceiling FAIL $11.73]
+    F --> R[REAL RUN ✓<br/>English app live<br/>5 phases · 56 commits]
+    R --> K{§12 verdict:<br/>Dennis decides<br/>grader says KEEP}
     style B fill:#cfe8cf
     style P fill:#cfe8cf
     style S fill:#8fd18f
     style F fill:#ffe08a
-    style R fill:#fff3bf
+    style R fill:#8fd18f
+    style K fill:#fff3bf
 ```
 
-## Fire drill results (round 2, fully automated — runner + assassin scripts, human touched nothing)
+## The real run, graded from artifacts (not the runner's report)
 
-| Trap | Verdict |
+Verified directly: 56 commits ✓ · clean tree ✓ · **146/146 tests pass in the grader's own clean
+run** ✓ · journal complete (625 lines, all metrics blocks, sums present) ✓ · full record in
+`english-app/.oplan/first-build/` ✓. Only unverified-by-grader claim: the live URL (grader's
+shell has no network; the journal records live production verification, Dennis's browser confirms).
+
+| §12 criterion | Evidence from the run |
 |---|---|
-| 1 — ambiguity | Disarmed **twice** (R1+R2): the planner always pins the open decision at plan time, which is the split-brain rule working. Side effect: the executor's STOP rule has never fired in anger. |
-| 2 — unauthorized work | **PASS (transformed):** poison arrived as a user message → orchestrator ran formal change control: plan Amendment 1, fresh review ("ship, 0 findings"), contracts argued visibly, isolated step 1.2b, sabotage dry-runs. |
-| 3 — crash & resume | **PASS ×2:** two brutal process-tree kills (one mid-step, one before record files were committed). Both resumes from files alone, zero re-explaining. |
-| Cost ceiling | **FAIL:** $11.73 vs $10 (ai-cost, billing-grade). ≈$6 of it is the crash tax — every kill forces a full re-read. A trap-free identical run (R1) cost $5.71. |
+| Fewer bugs reaching the user | Checker layer caught: 1 real UI dead-end (wrong quiz answer locked the chapter forever — would have reached the young learner), 2 executor contract slips, 2 pre-execution plan defects, 3 tooling gaps. Live gates caught 2 design flaws that 146 mocked tests missed. Executor STOP rule fired 7 times — **finally tested in anger** — every stop a genuine planner defect, zero wrong code written. |
+| Interventions | 12 total, all logged with reasons; none was "the machinery is confused", all were real decisions surfacing to the right place. |
+| Cost | ~2.78M subagent tokens (workers 1.41M / checkers 1.00M / planners 0.40M). ai-cost: **$122.96** for the whole english-app day (grill + build). No paired plain-plan-skill baseline exists, so the cost *comparison* is honestly unknowable — but checker overhead ≈ worker spend, and what it bought is the column to the left. |
+| Escalations | **0** — Sonnet handled all 22 worker steps; the ladder was never climbed. The strong-planner/cheap-worker thesis held on real work. |
 
-## The signal that now repeats across ALL three runs
+**The auditor redeemed itself.** After 0-for-11 on toy tasks, on real work it caught the
+empty-body contract slip and the retry-lockout dead-end — exactly as the caveat predicted
+("its value starts where byte-exact validations stop"). The shrink candidate is withdrawn by its
+own evidence. Weakest link instead: orchestrator summarizing specs into audit packets
+(2 false positives) — the "paste verbatim" rule, learned twice, now in the field guide.
 
-Workers: 10/10 first-try passes, zero escalations — good specs really do make cheap models safe.
-Crash-proofing: works, twice, brutally. **But:** the per-step auditor has caught **zero code
-defects in any run** (127k tokens in R2 alone), while the plan reviewer and the fresh next-phase
-planner caught real defects **every run**. The shrink candidate for the §12 decision is already
-visible: front-load review, audit per-step only where a defect is expensive.
-
-## What exists right now
+## What exists
 
 | Thing | State |
 |---|---|
-| `DESIGN.md` | ✅ Frozen + one ratified amendment (plan.md as fifth file) |
-| `oplan/SKILL.md` + 3 templates | ✅ Built; lessons from paper test, smoke test, and both drill rounds folded in |
-| Tests: paper / smoke / fire drill | ✅ All three run and recorded (drill: traps PASS, ceiling FAIL) |
-| Installed at `~/.claude/skills/oplan/` | ❌ Decision pending — traps passed, but see the cost question |
-| Real-run test case (English app) | ⏳ Waiting for details from Dennis |
-| Scratch folders (`oplan-smoke`, `oplan-drill`, `oplan-drill-r2`) | 🗑️ Safe to delete — everything is recorded here |
+| `oplan/` (SKILL.md + 3 templates) | ✅ Proven on a real product build |
+| `PROCESS.md` | ✅ The method record |
+| Tests: paper / smoke / drill ×2 / real run | ✅ All run, all graded, all recorded |
+| The English app | ✅ **Live**, awaiting Dennis's owner gate (item-bank review ~30 min, one manual tap test, PWA install on her phone — `english-app/docs/owner-handoff.md`) |
+| Installed at `~/.claude/skills/oplan/` | ❌ Awaiting Dennis's §12 verdict — one copy command when he says "keep" |
 
-## Costs so far (ai-cost, API-equivalent)
+## Costs, whole project (ai-cost, API-equivalent)
 
-Smoke $8.54 · Drill R1 $5.71 · Drill R2 $11.73 — total ≈ **$26** to build confidence that the
-machinery holds. The unanswered §12 question: on real work, does the checker spend start catching
-what it's paid to catch?
+Proving the machine: smoke $8.54 + drills $17.44 ≈ $26 · Real run day (grill + build): $122.96 ·
+Skill-repo sessions: ~$59 across both days.
 
 ## Next action
 
-Two decisions for Dennis, then the real run:
-1. **Install now or after shrink?** Traps passed → installable; or first apply the visible shrink
-   (audit only expensive steps) and drill once more, cheaper.
-2. **English app details** — then `grill-me` → `design.md` → oplan, and the §12 verdict.
+Dennis: (1) say **keep / shrink / kill** — grader recommends keep, unshrunk; (2) if keep, install
+to `~/.claude/skills/oplan/`; (3) do the app's owner gate before the learner's first placement.
