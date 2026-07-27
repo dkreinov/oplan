@@ -67,7 +67,8 @@ FINDINGS:
   - [missing|extra|contract|boundary] <file>:<line> — <what is wrong, in one line>
   - ... (or "none")
 CONFIDENCE: high | low — <one line: what you could not check from diff + spec alone>
-(hard cap: 25 lines total)
+PLAIN: <=2 lines, no jargon — what you checked and what you found, for a human who does not read code
+(hard cap: 27 lines total)
 ```
 
 Rules for the report:
@@ -76,6 +77,10 @@ Rules for the report:
   finding; find the sentence it contradicts, or drop it.
 - If the diff is empty or does not correspond to the spec at all, say so as a single finding —
   do not guess what happened.
+- `PLAIN` is written for a person, not for the orchestrator: ordinary words, no file paths without
+  saying what the file is for, no "diff", "spec", "boundary". For example: *"I compared the new
+  code against the written instructions. It does what was asked, but it also renamed something
+  nobody asked to rename."*
 - Use `CONFIDENCE: low` when the diff alone cannot settle something (for example: correctness
   depends on a file that is not in the diff). Say what you would have needed. Do not ask for it —
   you get one pass, and the orchestrator decides what to do with a low-confidence verdict.

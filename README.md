@@ -27,7 +27,7 @@ flowchart TD
     ORCH[ORCHESTRATOR — main thread<br/>strong model<br/>makes ALL decisions] -->|writes| STATUS
     ORCH -->|1. plan attacked by| REV[PLAN REVIEWER<br/>fresh eyes]
     ORCH -->|2. one sealed job at a time| EXEC[EXECUTOR<br/>cheap model, empty head<br/>unsure? STOP and ask]
-    EXEC -->|report, max 30 lines| ORCH
+    EXEC -->|report, max 32 lines| ORCH
     ORCH -->|3. diff + spec only| AUD[AUDITOR<br/>fresh eyes<br/>match or mismatch?]
     ORCH -->|4. next phase planned by| NEXT[NEXT-PHASE PLANNER<br/>fresh strong model<br/>reads FILES ONLY]
     ORCH -.->|checkpoint every acceptance| FILES[(plan · journal · phase-state<br/>field-guide)]
@@ -50,6 +50,11 @@ flowchart TD
   doubles as a free test that the written record is actually complete.
 - **Escalation is mechanical, never the worker's judgement:** validation fails twice → the same
   packet goes one model rung up, and the escalation is logged as data.
+- **You hear everything twice, plain words first.** Before any work starts you get the plan as
+  bullets — what each step does and *why* — and a go-ahead prompt. Every agent that reports back
+  gets one jargon-free line on screen. Every phase closes with two reports: a plain-language one
+  (what we did, what we found out, what went wrong, what it cost) and the technical one. No
+  vocabulary required to follow your own run.
 
 ## Why believe any of this
 
@@ -89,14 +94,15 @@ is the HOW. Execution mode: autonomous. Run all phases without pausing.
 
 Best results come from a frozen `design.md` (the WHAT) written *before* the run — interrogate
 the requirements first, then let the machinery own the HOW. Watch progress in the run's
-`STATUS.md`: plain language, always current, rewritten never appended.
+`STATUS.md` (plain language, always current, rewritten never appended) and read the run's story
+in `briefing.md` (the plan in bullets, then a plain-words report at every phase close).
 
 ## What's in the box
 
 | Path | What |
 |---|---|
 | [`oplan/SKILL.md`](oplan/SKILL.md) | The whole procedure: roles, hard rules, files, verification layers, escalation ladder, metrics |
-| [`oplan/templates/`](oplan/templates/) | The three packets: executor, auditor, next-phase planner |
+| [`oplan/templates/`](oplan/templates/) | The packets: executor, auditor, next-phase planner — plus the plain-words human report |
 | [`PROCESS.md`](PROCESS.md) | How this was planned, built, and audited — the reusable method |
 | [`DESIGN.md`](DESIGN.md) | The frozen design and its evidence base |
 | [`tests/`](tests/) | The test ladder with real run records, including the failures |

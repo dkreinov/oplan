@@ -104,8 +104,10 @@ VALIDATION: exact command run + last lines of output
 SURPRISES: <=3 lines, or "none"
 DEVIATIONS: <=3 lines, or "none"
 QUESTION: only if stopped — the exact decision needed
+PLAIN: <=2 lines, no jargon — what you changed and what you found out,
+       as you would tell a smart twelve-year-old who has never seen this code
 METRICS: retries=N, validation_first_try=yes|no
-(hard cap: 30 lines total)
+(hard cap: 32 lines total)
 ```
 
 Field notes:
@@ -118,4 +120,11 @@ Field notes:
   named differently, a version flag the tool required. Anything design-shaped — a choice, a
   default, a name nobody specified — is not a deviation, it is a QUESTION (§4). If you are unsure
   which one you are looking at, it is a QUESTION.
+- **PLAIN** — the same truth as DID and SURPRISES, said in ordinary words for a human who does not
+  read code: what you changed, and anything you found out that they would not expect. No file
+  paths unless you say what the file is for, no tool names unless you say what the tool does, no
+  words like "refactor", "context", "validation". Bad news stays bad news — say "the test failed
+  twice" if that is what happened. Example: *"Added the screen where a user types their name, and
+  the check that it is not empty. The database already had a name column, so nothing had to change
+  there."*
 - **METRICS** — plain counts. `validation_first_try=yes` only if it passed on your first run.

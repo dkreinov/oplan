@@ -7,7 +7,9 @@ description: |
   in clean contexts; separate fresh-eyed agents review the plan and audit every result; all
   memory lives in files so any agent can die and be replaced. Use for multi-step features,
   refactors, or migrations where correctness and a followable written record matter more than
-  raw speed. Do NOT use for single-step tasks (use plan-skill) or for anything one agent can
+  raw speed. Every plan and every phase is narrated to the human twice — once in plain,
+  jargon-free words and once in technical detail — so the run stays followable without reading
+  code. Do NOT use for single-step tasks (use plan-skill) or for anything one agent can
   finish in one sitting without checkpoints.
 license: MIT
 ---
@@ -47,23 +49,25 @@ a great spec given to a cheap model beats a vague spec given to an expensive one
 ```mermaid
 flowchart TD
     USER([Human]) -->|reads| STATUS[STATUS.md<br/>photograph of now<br/>simple language + diagram]
+    USER -->|reads| BRIEF[briefing.md<br/>the story so far<br/>plain words, then technical]
     ORCH[ORCHESTRATOR — main thread<br/>strong model<br/>makes ALL decisions] -->|writes| STATUS
+    ORCH -->|writes + prints on screen| BRIEF
     ORCH -->|1. plan checked by| REV[PLAN REVIEWER<br/>fresh eyes, read-only]
     REV -->|findings| ORCH
     ORCH -->|2. one packet at a time| EXEC[EXECUTOR<br/>cheap model, clean context<br/>unsure? STOP and ask]
-    EXEC -->|report, max 30 lines| ORCH
+    EXEC -->|report, max 32 lines| ORCH
     ORCH -->|3. diff + spec only| AUD[AUDITOR<br/>fresh eyes<br/>match or mismatch?]
     AUD -->|verdict| ORCH
     ORCH -->|4. phase finished| NEXT[NEXT-PHASE PLANNER<br/>fresh strong model<br/>reads FILES ONLY]
     NEXT -->|draft plan for orchestrator review| ORCH
-    ORCH -.->|checkpoint after every acceptance| FILES[(plan.md · journal.md<br/>phase-state.md · field-guide/index.md)]
+    ORCH -.->|checkpoint after every acceptance| FILES[(plan.md · journal.md · phase-state.md<br/>briefing.md · field-guide/index.md)]
     NEXT -.->|reads| FILES
     EXEC -.->|receives field guide| FILES
 ```
 
 | Role | Who runs it | Context | Job |
 |---|---|---|---|
-| Orchestrator | main thread, PLANNER tier | long-lived, ages | Plans, decides everything, dispatches, re-runs validation, writes files, gates phases |
+| Orchestrator | main thread, PLANNER tier | long-lived, ages | Plans, decides everything, dispatches, re-runs validation, writes files, gates phases, and narrates the whole run to the human in plain words (§14) |
 | Plan reviewer | subagent, CHECKER tier | fresh | Attacks the plan before any work starts — gaps, ambiguity, wrong order (packet defined in §10) |
 | Executor | subagent, WORKER tier | fresh, clean | Does exactly one step from a packet; returns a capped report |
 | Auditor | subagent, CHECKER tier | fresh | Sees ONLY diff + step spec; answers "does this match the spec, nothing more, nothing less?" |
@@ -86,7 +90,7 @@ answer, you now have two different designs in one codebase and nobody knows. Wea
 also bad at judging *when* to escalate, so escalation is never the worker's judgement call — it
 is a mechanical rule: unanswered question → stop.
 
-**Rule 2 — the report cap.** Executors return a fixed format, max 30 lines. You never read a
+**Rule 2 — the report cap.** Executors return a fixed format, max 32 lines. You never read a
 worker's full transcript. Your context is the scarcest resource in the whole system; a worker's
 process is not information, only its result is.
 
@@ -108,7 +112,7 @@ process is not information, only its result is.
 
 ## 5. Files — the shared memory
 
-**Workspace:** create `.oplan/<run-name>/` at the repo root at the start of the run. All five
+**Workspace:** create `.oplan/<run-name>/` at the repo root at the start of the run. All six
 files live there. If a `design.md` exists, copy it in — the next-phase planner is told to read
 `<workspace>/design.md` and must not depend on a path only you remember. If the skill itself is
 not installed in the environment, also copy `SKILL.md` and `templates/` into `<workspace>/skill/`:
@@ -120,6 +124,7 @@ the record must be self-governing, or a fresh session cannot resume the run's ow
 | `journal.md` | History: everything that happened | Append-only. Allowed to grow. Raw input for the next-phase planner. |
 | `STATUS.md` | A photograph of NOW, for the human | **Rewritten** every update, never appended. Simple language + a mermaid diagram. No stale lines. Line budget 60 lines (same soft-cap rule as §6). Orchestrator is the only writer. |
 | `phase-state.md` | "Where are we" for agents | Updated at every step acceptance — this is the checkpoint. |
+| `briefing.md` | The story of the run, for the human: the plain-words plan briefing, then the two reports at each phase close | **Append-only**, plain words first (§14). Written only by you, read only by the human — it is never pasted into an agent packet, so it costs nothing at execution time. |
 | `field-guide/index.md` | Curated lessons, injected into every executor and planner packet — **never** into an auditor packet (its blindness is the instrument, §7) | Line-budgeted (§6). Orchestrator promotes journal entries into it at phase boundaries. |
 
 **Why `plan.md` is a file and not just your context:** every step spec, validation command and
@@ -139,6 +144,12 @@ BLOCKED: <what stopped the run, or "no">
 
 **STATUS.md vs journal.md — the rule that prevents duplication:** if a fact is *history*, it
 lives in the journal; if a fact is *current*, it lives in STATUS. A fact is never in both.
+
+**And where does `briefing.md` fit?** The journal is history *for agents* — numbers, commands,
+commit hashes. The briefing is the same history *for the human* — the same events, in ordinary
+words, with the "why" that the journal never records. This is the one deliberate duplication in the
+run, because the two readers cannot use the same text: an agent needs the exact command, a human
+needs the sentence that explains why we ran it.
 
 **What "photograph" means:** you do not edit STATUS.md line by line. You rewrite the whole file
 from the current truth. A stale line in STATUS.md is worse than no STATUS.md, because the human
@@ -264,9 +275,15 @@ VALIDATION: exact command run + last lines of output
 SURPRISES: <=3 lines, or "none"
 DEVIATIONS: <=3 lines, or "none"
 QUESTION: only if stopped — the exact decision needed
+PLAIN: <=2 lines, no jargon — what you changed and what you found out,
+       as you would tell a smart twelve-year-old who has never seen this code
 METRICS: retries=N, validation_first_try=yes|no
-(hard cap: 30 lines total)
+(hard cap: 32 lines total)
 ```
+
+`PLAIN` is raw material for what you print on screen and write into `briefing.md` (§14). You are
+free to rewrite it — a cheap model often leaks jargon — but the worker is the only one who saw the
+work happen, so asking it costs two lines and saves you inventing the sentence yourself.
 
 A malformed report is itself a finding: log it, re-dispatch once with the format restated, and
 stop the run if the second one is malformed too (§7).
@@ -279,8 +296,9 @@ flowchart TD
     B --> C[PLAN REVIEWER: fresh eyes attack the plan]
     C --> D{Findings?}
     D -->|yes| B
-    D -->|no| E[Write workspace files:<br/>plan · journal · STATUS · phase-state]
-    E --> F[Dispatch ONE executor packet]
+    D -->|no| E[Write workspace files:<br/>plan · journal · STATUS · phase-state · briefing]
+    E --> E2[PRINT the plain-words briefing<br/>bullets per phase: what · why · done when<br/>wait for the human's go-ahead]
+    E2 --> F[Dispatch ONE executor packet]
     F --> G{Report status?}
     G -->|stopped-with-question| H[YOU answer it, amend plan.md,<br/>log the intervention, re-dispatch]
     H --> F
@@ -302,9 +320,10 @@ flowchart TD
     O -->|yes| F
     O -->|no| P[Phase gate: check the acceptance<br/>criteria written in plan.md]
     P --> Q[Promote lessons to field guide<br/>record phase metrics + context size]
-    Q --> S[NEXT-PHASE PLANNER: fresh, files only]
+    Q --> Q2[PRINT the two phase reports:<br/>plain words first, technical second<br/>append the plain one to briefing.md]
+    Q2 --> S[NEXT-PHASE PLANNER: fresh, files only]
     S --> T[Review its plan · answer every BLOCKER<br/>· patch every RECORD GAP · write plan.md]
-    T --> U[Phase boundary: pause,<br/>print handoff prompt] --> F
+    T --> U[Phase boundary: pause,<br/>print handoff prompt] --> E2
 ```
 
 In words:
@@ -315,32 +334,40 @@ In words:
    being planned until all of them are filled. The phase also gets **mechanical acceptance
    criteria**, written now, before any executor exists. Later phases get skeletons only.
 2. **Send the plan to a fresh plan reviewer** before any execution (packet below). Fix what it finds.
-3. **Write the workspace files** (`plan.md`, `journal.md`, `STATUS.md`, `phase-state.md`) before
-   dispatching anything. If you crash here, the run must still be recoverable.
-4. **Dispatch one packet.** Wait. Read only the report.
-5. **If the worker stopped with a question:** answer it yourself, amend the step spec in `plan.md`
+3. **Write the workspace files** (`plan.md`, `journal.md`, `STATUS.md`, `phase-state.md`,
+   `briefing.md`) before dispatching anything. If you crash here, the run must still be recoverable.
+4. **Print the plan briefing in plain words** (§14.1) — bullets per phase: what we do, why, and how
+   we will know it worked — and **wait for the human's go-ahead** before the first dispatch. Do this
+   at the start of every phase, not only the first.
+5. **Dispatch one packet.** Wait. Read only the report.
+6. **If the worker stopped with a question:** answer it yourself, amend the step spec in `plan.md`
    so the answer is now written down, log it as an intervention, re-dispatch.
-6. **Re-run the frozen validation yourself,** in a clean state (§7). The worker's word is not
+7. **Re-run the frozen validation yourself,** in a clean state (§7). The worker's word is not
    evidence.
-7. **On failure: revert first, then retry.** Restore the step's files to the last accepted commit
+8. **On failure: revert first, then retry.** Restore the step's files to the last accepted commit
    (`git checkout <last accepted commit> -- <the step's file list>`) before every re-dispatch — a
    fresh executor is told it has no history, so it cannot know what a previous attempt left behind.
    Second failure → same packet, one rung up (§7), and log the escalation.
-8. **Send the scoped diff + spec to the auditor** (§7, Layer 2). Mismatch → revert, fix the spec,
+9. **Send the scoped diff + spec to the auditor** (§7, Layer 2). Mismatch → revert, fix the spec,
    re-dispatch once; a second mismatch on the same step stops the run. `match` with
    `CONFIDENCE: low` → supply the missing evidence (an extra file, a second lens) and re-audit
    once; if it is still low, accept and log it as a risk in the journal.
-9. **Accept:** commit the step's files (`step <phase>.<n>: <title>`), append to the journal,
-   update `phase-state.md` (this is your checkpoint), rewrite `STATUS.md`.
-10. **At the phase gate:** check the acceptance criteria written in `plan.md` before the phase
+10. **Print one plain line for every subagent that reported** — executor, auditor, and the two
+    planners alike (§14.2): what it did, what it found. Print it as each one comes back, not in a
+    batch at the end; a run the human cannot follow while it happens is a run they cannot stop.
+11. **Accept:** commit the step's files (`step <phase>.<n>: <title>`), append to the journal,
+    update `phase-state.md` (this is your checkpoint), rewrite `STATUS.md`.
+12. **At the phase gate:** check the acceptance criteria written in `plan.md` before the phase
     started, promote field-guide lessons, record phase metrics including your own context size,
     and rewrite `STATUS.md` — a phase close is an update like any other, and it is exactly where
     the first smoke run left STATUS stale.
-11. **Have a fresh planner plan Phase N+1** from files alone, then review its plan yourself.
+13. **Print the two phase reports** (§14.3): the plain-words one first, the technical one second,
+    and append the plain one to `briefing.md`.
+14. **Have a fresh planner plan Phase N+1** from files alone, then review its plan yourself.
     Its `BLOCKERS` and `RECORD GAPS` are not commentary: **answer every blocker in writing and
     patch the file each record gap names**, before dispatching the first step of the new phase.
     Write the resulting plan into `plan.md`.
-12. **Pause at the phase boundary** (§11) and print the handoff prompt.
+15. **Pause at the phase boundary** (§11) and print the handoff prompt.
 
 ### The plan reviewer packet (fill in and send; CHECKER tier)
 
@@ -368,7 +395,8 @@ In words:
 > FINDINGS:
 >   - [undecided|validation|order|boundary|missing|acceptance] step <id> — <what is wrong, one line>
 >   - ... (or "none")
-> (hard cap: 25 lines)
+> PLAIN: <=2 lines, no jargon — what you looked for and what you found, in ordinary words
+> (hard cap: 27 lines)
 > ```
 > `fix-first` if there is even one `undecided` finding — those are exactly what this gate exists
 > to catch.
@@ -450,6 +478,9 @@ PHASE <N> CLOSED
   field_guide: <N>/40 lines (<overflow justification, or "within budget">)
 ```
 
+This block is also the body of the **technical** half of the phase report the human gets on screen
+(§14.3) — you compute it once and it serves both readers.
+
 **Where the numbers come from:** token and cost figures come from the harness's own usage readout
 for each subagent result, and your own context size from the harness's context/cost display (in
 Claude Code: `/context` and `/cost`). If the harness cannot report a number, write `unavailable`.
@@ -476,6 +507,154 @@ it. Machinery that cannot show its value is fluff.
 | `templates/executor-packet.md` | Fill in and send to a worker |
 | `templates/auditor.md` | Fill in and send to the fresh-eyes checker |
 | `templates/next-phase-planner.md` | Fill in and send to the fresh planner at a phase boundary |
+| `templates/human-report.md` | The plain-words formats you print on screen: plan briefing, per-agent one-liner, the two phase reports (§14) |
 
 The test ladder (paper test, smoke test, fire drill) lives in the development project's `tests/`
 folder, not inside the installed skill.
+
+## 14. Talking to the human — plain words and the two-voice rule
+
+Everything above is machinery for agents. This section is about the one participant who is not an
+agent: the person watching. The rule is one sentence:
+
+> **Every time the human hears from you, they hear it twice: once in plain words, then once in
+> precise technical terms. Plain always comes first, because the plain version is the one that
+> gets read.**
+
+**What "plain words" means:** a bright twelve-year-old who has never seen this codebase should
+follow it. Ordinary words, short sentences, one idea per line. It does **not** mean less content.
+Two things plain words never means:
+
+1. **Never drop a number.** A plain report keeps every figure; it just says `$4.10 — about the
+   price of a coffee` instead of `cost profile within envelope`.
+2. **Never soften bad news.** A failure in plain words is still a failure: *"the test failed
+   twice, so we handed the same job to a stronger, more expensive helper."*
+
+The human is the only reader who cannot ask a file to explain itself. If they have to ask you what
+just happened, the reporting failed — fix the wording, not the human.
+
+**The three moments the human hears from you:**
+
+| Moment | What you print | Where it also lives |
+|---|---|---|
+| A phase's plan is ready (after the plan reviewer passes, before the first dispatch) | **The briefing** — bullets per phase: what we do, why, how we'll know it worked (§14.1) | `briefing.md` |
+| Every subagent returns — executor, plan reviewer, auditor, next-phase planner | **One plain line**: what that agent did, what it found (§14.2) | screen only; the journal keeps the technical record |
+| A phase closes | **Two reports**: plain-words first, technical second (§14.3) | plain → `briefing.md`, technical → `journal.md` |
+
+**`briefing.md` is a sixth workspace file:** append-only, written only by you, and **never pasted
+into any agent packet** — it is for the human alone, so it costs nothing at execution time. Why a
+file and not just screen output: screen output dies at the phase boundary, where the default is
+`/clear` (§11). After a clear, `briefing.md` is the only place the human can re-read the story of
+their own run.
+
+### 14.1 The plan briefing — printed before the first dispatch of every phase
+
+```text
+=== PLAN IN PLAIN WORDS ===
+WHAT WE ARE BUILDING: <2-3 sentences, no jargon>
+HOW MANY PHASES: <N>
+
+PHASE 1 — <plain title>   [planned in full]
+  What we do:  <one line>
+  Why:         <one line — what stays broken or missing if we skip it>
+  Done when:   <one line — the check, said in words>
+  Steps:
+    1.1 <what happens, one line> — because <why this step exists>
+    1.2 ...
+PHASE 2 — <plain title>   [rough sketch — planned properly once Phase 1 is done]
+  What we do / Why / Done when — one line each
+...
+WHAT WE ARE NOT DOING: <the non-goals, in plain words>
+BIGGEST RISK: <one line> — <how we would notice if it happened>
+=== END ===
+```
+
+Every step bullet answers two things: **what happens** and **why**. The *why* is the half the human
+cannot reconstruct from watching files change, and it is the half that lets them catch a wrong plan.
+
+**Then stop and ask for a go-ahead before dispatching the first step.** This is the cheapest moment
+in the entire run for the human to say "that is not what I meant": caught here it costs one message,
+caught after the phase runs it costs the whole phase. Skip the wait only in continuous mode (§11) —
+print the briefing anyway.
+
+Phases that are still skeletons get one line each, honestly labelled as sketches. Do not invent
+detail you have not planned; a confident-sounding sketch is a lie to the only person who cannot
+check it.
+
+### 14.2 One plain line after every subagent
+
+The moment a subagent returns and before you do anything else with its report, print:
+
+```text
+[<who, in plain words>] <what they did> → <what they found>
+```
+
+```text
+[helper] Wrote the login screen and the test that checks it → passed on the first try.
+[checker] Compared the new code against the written instructions → matches, and nothing extra crept in.
+[plan reviewer] Tried to poke holes in the plan → found 2: nobody said what the file is called, and step 3 needs something step 4 makes.
+[next planner] Planned the next phase using only the written files → managed it, except it could not find where we decided the date format.
+```
+
+Cap: **2 lines per agent.** This costs you nothing — you have already read the report — and it is
+what turns a long silent run into something a human can follow. Include what the agent *discovered*,
+not just that it finished: "passed" is a status, "the database was already migrated" is a discovery.
+
+### 14.3 The two reports at every phase close
+
+Print both, plain first, never merged into one.
+
+```text
+=== PHASE <N> — PLAIN REPORT ===
+WHAT WE SET OUT TO DO:   <one line>
+WHAT WE ACTUALLY DID:    <one bullet per step, plain words>
+WHAT WE FOUND OUT:       <the discoveries — surprises, things that were not what we assumed>
+WHAT WENT WRONG:         <failures, retries, what we did about them — or "nothing">
+WHAT IT COST:            <money and wall-clock time, in plain numbers>
+WHERE WE ARE NOW:        <one line>
+WHAT HAPPENS NEXT:       <one line, and what we need from you — or "nothing">
+=== END PLAIN REPORT ===
+
+=== PHASE <N> — TECHNICAL REPORT ===
+<the PHASE CLOSED metrics block from §12, verbatim>
+ACCEPTANCE CRITERIA: <each criterion — the command run, and pass/fail>
+ACCEPTED STEPS: <step id — commit hash — validation first try yes/no>
+OPEN RISKS: <or "none">
+=== END TECHNICAL REPORT ===
+```
+
+`WHAT WE FOUND OUT` is the section that justifies the whole plain report. Everything else restates
+the plan; this one carries information that exists nowhere the human will look — it is built from
+the `SURPRISES` and `DEVIATIONS` lines the executors returned (§12) and from what the checkers said.
+If it is empty two phases in a row, you are probably summarizing instead of reporting.
+
+### 14.4 The word list
+
+Rewrite jargon on the way out. When a term genuinely cannot be avoided — a real filename, a tool
+name, a command — use it and define it inline, once: `pytest (the tool that runs our tests)`.
+
+| Instead of | Say |
+|---|---|
+| orchestrator | the manager (me) |
+| executor / worker / subagent | a helper |
+| auditor / fresh eyes | the checker — a second helper who never saw the work being done |
+| plan reviewer | someone whose only job is to poke holes in the plan before we start |
+| context / context window | memory — how much an agent can hold in its head at once |
+| tokens | leave them out; give money and time instead |
+| validation command | the test we agreed on before we started |
+| frozen contract | a promise nobody is allowed to change |
+| diff | the exact lines that changed |
+| commit | a save point we can go back to |
+| escalation | hand the same job to a stronger, more expensive helper |
+| regression | something that used to work and now doesn't |
+| refactor | rearrange the code without changing what it does |
+| dependency | one thing has to exist before another can work |
+| skeleton / stub | a rough sketch we fill in later |
+| idempotent · deterministic · canonical · orthogonal | say what it actually does, in a sentence |
+
+### 14.5 How you know this is working
+
+The test is not "did I print the sections". It is: **can the human, without asking a single
+question, say what is being built, what happened in the last phase, what it discovered, and what
+happens next?** Every question they have to ask is a defect in the previous report — and the fix is
+always the same one: shorter sentences, ordinary words, the number left in.

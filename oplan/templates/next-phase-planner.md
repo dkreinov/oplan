@@ -92,7 +92,18 @@ RISKS: <what could fail silently, and how it would be noticed>
 BLOCKERS: <decisions missing from the written record — each with the file you expected to find
            it in — or "none">
 RECORD GAPS: <anything you needed that the record did not contain, even if you worked around it>
+
+PLAIN PLAN: for the human, no jargon — one line per step:
+  <N+1>.1 <what happens> — because <why we do it>
+  <N+1>.2 ...
+  DONE WHEN: <one line — how we will know the whole phase worked>
 ```
+
+`PLAIN PLAN` is what the human will be shown before any of this runs (`SKILL.md` §14.1), so write
+it for someone who does not read code: ordinary words, and a real reason for every step — not
+"implement the parser" but "teach the program to read the file we get from the bank, because right
+now it only understands one format". The orchestrator may rewrite it, but you are the one who knows
+why each step is there.
 
 `BLOCKERS` and `RECORD GAPS` are not optional politeness. They are the output the orchestrator
 most needs: blockers stop the phase from starting on a guess, and record gaps are how the file
