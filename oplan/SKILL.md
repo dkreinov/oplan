@@ -573,6 +573,12 @@ just happened, the reporting failed — fix the wording, not the human.
 | Every subagent returns — executor, plan reviewer, auditor, next-phase planner | **One plain line**: what that agent did, what it found (§14.2) | screen only; the journal keeps the technical record |
 | A phase closes | **Two reports**: plain-words first, technical second (§14.3) | plain → `briefing.md`, technical → `journal.md` |
 
+**A diff is never narration.** The harness prints file edits on its own — every plan.md rewrite
+shows up on screen as a wall of changed lines. That is the record being written, not the human
+being told. It counts for nothing under this section: every plan.md rewrite at a phase boundary
+must still be followed by the printed plain-words briefing (§14.1) before anything is dispatched,
+and the human is free to ignore every diff the harness prints.
+
 **`briefing.md` is a sixth workspace file:** append-only, written only by you, and **never pasted
 into any agent packet** — it is for the human alone, so it costs nothing at execution time. Why a
 file and not just screen output: screen output dies at the phase boundary, where the default is
