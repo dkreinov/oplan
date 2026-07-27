@@ -200,10 +200,18 @@ executor exists, and live in `plan.md`. They are the run's held-out test: work i
 redefine what "done" means after the fact.
 
 **The escalation ladder — driven by you, never by the worker.** Escalation moves one rung up the
-**model** ladder in §8, not up the tier list (under the v0.1 binding, WORKER and CHECKER are the
-same model, so a tier-space reading would be a no-op). A step starts on its assigned tier. If its
-validation fails twice, you re-dispatch **the same packet, unchanged**, one rung up, and log it
-as `tier: WORKER (Opus, escalated)` — the role does not change, only the horsepower.
+**model** ladder in §8, not up the tier list (under the v0.1 binding the executor and the auditor
+share a model, so a tier-space reading would be a no-op). A step starts on its assigned tier.
+
+**First failure → same tier, evidence attached.** Re-dispatch at the same tier, appending the
+failing validation output to the packet. A fresh executor has no memory of the attempt; without
+the evidence it walks into the same wall, and the retry is a pure token burn. Attaching
+mechanical evidence is not a spec change — the spec stays frozen.
+
+**Second failure → one rung up, byte-identical.** Re-dispatch the ORIGINAL packet — unchanged,
+evidence removed — one rung up the model ladder, and log it as `tier: WORKER (Opus, escalated)`.
+The role does not change, and neither does the effort binding (§8): escalation moves the model
+only, so the diagnostic stays one-variable.
 
 Do not rewrite the spec on the first escalation: if the same spec succeeds one rung up, the spec
 was fine and the tier was wrong; if it fails again, the spec is the problem and needs your
@@ -231,23 +239,40 @@ in this table, and change nothing else when moving between tools.
 | Tier | Meaning | Used by |
 |---|---|---|
 | PLANNER | strong: design decisions, long-horizon coherence | orchestrator, next-phase planner |
-| CHECKER | middle: careful comparison against a spec | plan reviewer, auditor |
+| CHECKER | careful comparison against a spec — bound per role below, because the two checkers run at very different frequencies | plan reviewer, auditor |
 | WORKER | cheap: pattern-following execution from a complete spec | executor |
 
 **Claude Code binding (v0.1 default):**
 
-| Role | Model |
-|---|---|
-| Orchestrator | Opus |
-| Next-phase planner | Opus |
-| Plan reviewer | Sonnet |
-| Auditor | Sonnet |
-| Executor | Sonnet (Haiku only after metrics show a class of steps is safe for it) |
-| **Escalation ladder** | **Haiku < Sonnet < Opus < Fable** |
+| Role | Model | Effort (thinking budget) |
+|---|---|---|
+| Orchestrator | the session model — the skill recommends Opus as the minimum but cannot bind it; the human sets it with `/model` | human-controlled |
+| Next-phase planner | Opus | ultrathink |
+| Plan reviewer | Opus — one rung above the auditor because it runs once per phase (cost is noise) and guards the costliest defect class, undecided decisions | high |
+| Auditor | Sonnet | medium |
+| Executor | Sonnet (Haiku only after metrics show a class of steps is safe for it) | low |
+| **Escalation ladder** | **Haiku < Sonnet < Opus < Fable** | effort never changes on escalation |
+
+**How the effort column was set, and when it may change:** effort scales with the blast radius
+of the role's mistake, discounted by how often the role runs. The executor runs every step under
+two safety nets, so it thinks least — a complete spec IS the thinking, done at plan time, and
+extra worker rumination buys wandering, not correctness. The planners run once per phase and
+every downstream defect starts in their output, so they think hardest. The auditor stays at
+medium deliberately: its instrument is narrowness, and extra depth tempts speculation beyond the
+diff. These bindings are fixed here like the models — never adjusted per dispatch — and change
+only the way Haiku unlocks: metrics, at a version bump.
+
+**How effort is expressed in Claude Code:** thinking keywords in the packet text — low = no
+keyword, medium = "think", high = "think hard", ultrathink = "ultrathink". Each template header
+states its role's level; the orchestrator puts the keyword into the packet when filling it.
 
 Fable sits at the top rung: reachable by escalation, or chosen deliberately for a phase whose
 planning is genuinely hard. It is roughly twice Opus's cost, so it is not a default — the honest
 metric is cost per completed task, not cost per token.
+
+**Open question for v0.2:** whether WORKER escalation should cap at Opus, keeping the Fable rung
+for PLANNER-tier work — today the ladder allows up to two Fable dispatches of pattern-following
+work before the stop rule fires. No run data yet says this bites; decide from escalation metrics.
 
 **Porting to another harness** (Codex, etc.): replace this section's two tables with that
 harness's models and its own ladder ordering. Everything outside this section is written in
@@ -307,8 +332,8 @@ flowchart TD
     X -->|yes| STOPRUN[STOP the run<br/>write blocker to STATUS + phase-state<br/>hand back to human]
     G -->|done| I[Re-run the frozen validation yourself<br/>in a clean state]
     I --> J{Passed?}
-    J -->|no, 1st failure| R1[Revert the step's files<br/>to last accepted commit] --> F
-    J -->|no, 2nd failure| K[Same packet, one rung up the model ladder<br/>log the escalation]
+    J -->|no, 1st failure| R1[Revert the step's files<br/>re-dispatch same tier with<br/>failing output attached] --> F
+    J -->|no, 2nd failure| K[Original packet, byte-identical,<br/>one rung up the model ladder<br/>log the escalation]
     K --> F
     K -.->|already at top rung| STOPRUN
     J -->|yes| L[AUDITOR: scoped diff + spec only]
@@ -347,7 +372,9 @@ In words:
 8. **On failure: revert first, then retry.** Restore the step's files to the last accepted commit
    (`git checkout <last accepted commit> -- <the step's file list>`) before every re-dispatch — a
    fresh executor is told it has no history, so it cannot know what a previous attempt left behind.
-   Second failure → same packet, one rung up (§7), and log the escalation.
+   First failure → same tier, same packet plus the failing validation output appended (mechanical
+   evidence, not a spec change — §7). Second failure → the original packet, byte-identical, one
+   rung up (§7), and log the escalation.
 9. **Send the scoped diff + spec to the auditor** (§7, Layer 2). Mismatch → revert, fix the spec,
    re-dispatch once; a second mismatch on the same step stops the run. `match` with
    `CONFIDENCE: low` → supply the missing evidence (an extra file, a second lens) and re-audit
@@ -369,7 +396,8 @@ In words:
     Write the resulting plan into `plan.md`.
 15. **Pause at the phase boundary** (§11) and print the handoff prompt.
 
-### The plan reviewer packet (fill in and send; CHECKER tier)
+### The plan reviewer packet (fill in and send; CHECKER tier — Opus, effort high: include
+"think hard" in the packet, per §8)
 
 > You are reviewing a plan before any of it is executed. Fresh eyes are the whole point — you did
 > not write it and you have no history with it.
@@ -473,6 +501,7 @@ PHASE <N> CLOSED
   steps: <N>, first-try passes: <N>/<N>
   escalations: <N> (steps: <list>)
   interventions: <N>
+  reviewer_misses: <N> (stopped-with-question interventions after the plan reviewer said `ship`)
   cost: worker=$<X>, checker=$<X>, planner=$<X>, total=$<X>
   orchestrator_context: <N> tokens
   field_guide: <N>/40 lines (<overflow justification, or "within budget">)
@@ -489,10 +518,13 @@ below is made from these figures. Compute every total with a command (`awk`, `py
 your head — nothing in this machinery re-checks your arithmetic, and the first smoke run mis-added
 a six-number sum.
 
-The six numbers that matter (and why): first-try pass rate and retries say whether specs are
+The seven numbers that matter (and why): first-try pass rate and retries say whether specs are
 good enough; escalations say where you misjudged difficulty; cost split by model says whether
 the cheap-worker idea is actually paying; interventions say how much human time this really
-costs; orchestrator context size decides the `/clear` policy.
+costs; reviewer misses say whether the plan gate is earning its Opus binding — every
+stopped-with-question after a `ship` verdict is a defect the reviewer was paid to catch, and
+this number is what would ever justify walking it back to Sonnet; orchestrator context size
+decides the `/clear` policy.
 
 **The honesty clause:** these numbers exist to be compared against doing the same work with a
 plain single-agent plan. If oplan does not show fewer bugs reaching the human, fewer

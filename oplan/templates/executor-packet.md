@@ -5,7 +5,12 @@
 > don't know the answer yet — **stop**. An unfilled slot is an open decision, and open decisions
 > are yours (`SKILL.md` §4.2). Never dispatch a packet with a question still in it.
 >
-> Tier for this dispatch: WORKER (see the binding table in `SKILL.md` §8).
+> Tier for this dispatch: WORKER, effort **low** — no thinking keyword in the packet
+> (`SKILL.md` §8): a complete spec IS the thinking, done at plan time.
+>
+> **Same-tier retry?** If this is a re-dispatch after one validation failure, append the
+> previous failing validation output at the end of §1 — mechanical evidence, not a spec
+> change (`SKILL.md` §7). On escalation, send the ORIGINAL packet byte-identical.
 
 ---
 

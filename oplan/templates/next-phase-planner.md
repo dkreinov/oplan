@@ -1,7 +1,9 @@
 # Next-phase planner template
 
 > **Orchestrator:** fill the `{{...}}` slots and send as the subagent's entire prompt.
-> Tier: PLANNER (`SKILL.md` §8).
+> Tier: PLANNER, model Opus, effort **ultrathink** — include the word "ultrathink" in the
+> packet (`SKILL.md` §8): every downstream defect starts in this output, and it runs once
+> per phase.
 >
 > **Do not paste context into this packet.** Give file paths, not contents, and give nothing that
 > exists only in your head. This role has a second job besides planning: it is the test of whether
@@ -25,7 +27,8 @@ Read these, in this order:
    in full; skim earlier ones)
 4. `{{workspace}}/field-guide/index.md` — the curated lessons; treat these as binding
 5. `{{workspace}}/design.md` — the frozen WHAT {{or "not present for this run"}}
-6. The codebase itself, as needed
+6. The codebase itself, as needed — but do not read the whole repository: read what the record
+   points you at, plus what those files directly import
 
 **You may not use anything else.** There is no chat history to ask about and no earlier agent to
 consult. If a decision you need is not in those files, that is a finding — report it (see the

@@ -1,7 +1,9 @@
 # Auditor template
 
 > **Orchestrator:** fill the `{{...}}` slots and send as the subagent's entire prompt.
-> Tier: CHECKER (`SKILL.md` §8).
+> Tier: CHECKER, model Sonnet, effort **medium** — include the word "think" in the packet
+> (`SKILL.md` §8). Not higher: depth tempts speculation beyond the diff, and narrowness is
+> this role's instrument.
 >
 > **The hard rule of this role:** the auditor receives only the diff and the step spec — nothing
 > else. No plan, no journal, no chat history, no "here's what the worker told me". The narrowness
