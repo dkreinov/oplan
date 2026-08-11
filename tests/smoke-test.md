@@ -1,128 +1,71 @@
-# Smoke test — does the plumbing move?
+# Smoke test — autonomous three-phase lifecycle
 
-**What this proves:** every role spawns, every role receives its packet, every role returns its
-fixed-format output, and all four files get written. **Nothing else.** There are no traps here and
-no hard thinking — a smoke test that a healthy run can fail is a bad smoke test. Traps live in
-`fire-drill.md`.
+This test proves the v0.2 control loop, not code difficulty. Run it in a disposable repository
+outside the skill source. Capture agent/task IDs and the main-thread transcript.
 
-**Cost:** small (a handful of cheap dispatches). No preset ceiling.
-**Run it:** in a scratch folder outside this repo, e.g. `~/scratch/oplan-smoke/`. Delete it after.
+## Task
 
----
+Invoke `oplan` without special “continuous mode” wording:
 
-## Setup
+> Build a three-stage text pipeline. Phase 1 writes `input.txt` containing `hello world`.
+> Phase 2 writes `upper.txt` by converting it to uppercase. Phase 3 writes `count.txt` containing
+> the word count. Run all relevant checks.
 
-```bash
-mkdir -p ~/scratch/oplan-smoke && cd ~/scratch/oplan-smoke && git init
-```
+## Binary pass checklist
 
-Start a fresh session in that folder and invoke the skill with the task brief below. The
-orchestrator's workspace files (`journal.md`, `STATUS.md`, `phase-state.md`,
-`field-guide/index.md`) go in that folder too.
+### Thin harness and fresh roles
 
-## The task brief (paste this to the orchestrator)
+- [ ] Phase 1 was planned by a fresh phase planner, not the main thread.
+- [ ] Phases 2 and 3 each used a different fresh phase planner.
+- [ ] Every leaf used a new executor with no inherited chat.
+- [ ] A fresh plan reviewer ran for every phase.
+- [ ] A spec auditor ran after every leaf; a system reviewer ran at every phase gate.
+- [ ] A fresh phase curator reconciled records before every close, including Phase 3.
+- [ ] The main thread modified no product file and never emitted a feature-plan artifact itself.
+- [ ] The main thread received no full transcript, plan, journal, code file, or diff.
 
-> Run this with the oplan skill. Two phases, deliberately trivial — I am testing the machinery,
-> not the work.
->
-> **Phase 1 — "greeting":** create `greeting.txt` containing exactly one line: `hello world`.
-> Then create `count.txt` containing exactly the number of words in `greeting.txt`.
->
-> **Phase 2 — "shout":** create `shout.txt` containing the contents of `greeting.txt` in
-> upper case.
->
-> There is no `design.md`. Nothing here is a trick — if a step seems ambiguous, that is a real
-> finding worth telling me about, but I do not expect one.
+### Autonomous continuation
 
-Suggested frozen validation commands (the orchestrator may write its own, but they must be this
-mechanical):
+- [ ] No final response or phase-boundary approval wait occurred between phases.
+- [ ] Before every non-final phase report, `phase-state.md` already said
+      `NEXT_ACTION: SPAWN_PHASE_PLANNER phase=<next> mode=new source=none`.
+- [ ] At that transition `PHASE_CONTROL: none`; each new planner then installed a fresh versioned
+      phase control before plan review.
+- [ ] The only terminal state was `COMPLETE` after Phase 3 acceptance passed.
+- [ ] Phase 3's sealed control had `next_phase: null`; held-out overall acceptance passed before `COMPLETE`.
+- [ ] Every phase briefing and report was printed and appended to `briefing.md`.
 
-```bash
-# step 1.1
-[ "$(cat greeting.txt)" = "hello world" ]
-# step 1.2
-[ "$(cat count.txt)" = "2" ]
-# step 2.1
-[ "$(cat shout.txt)" = "HELLO WORLD" ]
-```
+### Packets and decisions
 
-## Pass checklist
+- [ ] Every executor received one sealed packet path, not a main-thread reconstruction.
+- [ ] The harness read only the corresponding small control JSON and verified its packet/control seal.
+- [ ] A pre/post worktree guard proved every executor changed only its declared write set.
+- [ ] Each packet had an exhaustive write set, frozen validation, risk, non-goals, and decision IDs.
+- [ ] Phase acceptance commands were absent from leaf packets.
+- [ ] `grill-me` was not invoked because no material product decision was unresolved.
 
-Every line is binary. Any `no` = smoke test failed; fix the skill text before moving to the fire
-drill.
+### Records and outcome
 
-### Roles spawned and answered
+- [ ] All workspace artifacts and directories from `references/state-and-records.md` exist.
+- [ ] `LAST_ACCEPTED` was always a verified full commit SHA; the initial Git baseline was valid.
+- [ ] `phase-state.md` remained under 30 lines and always identified one executable `NEXT_ACTION`.
+- [ ] `STATUS.md` contained only current state; `journal.md` and `briefing.md` were append-only.
+- [ ] Every capped role return and executor question was persisted as a versioned artifact before state advanced.
+- [ ] `input.txt`, `upper.txt`, and `count.txt` contain the exact expected values.
+- [ ] `python3 oplan/scripts/validate_skill_contracts.py` passes in the skill source.
+- [ ] `validate_run.py <workspace> --phase <N> --seal` passes after plan-review `ship`.
+- [ ] `validate_run.py <workspace> --phase <N> --require-sealed` passes before every dispatch,
+      retry, audit, validation, and commit.
 
-- [ ] A **plan reviewer** subagent ran on the Phase 1 plan before any execution, and returned the `VERDICT` + `FINDINGS` format from `SKILL.md` §10
-- [ ] Each step was executed by an **executor** subagent in a fresh context — one at a time, never two at once
-- [ ] Every executor returned the report format from `SKILL.md` §9: STATUS / DID / VALIDATION / SURPRISES / DEVIATIONS / METRICS present, ≤30 lines
-- [ ] An **auditor** subagent ran after every step and returned VERDICT + FINDINGS + CONFIDENCE
-- [ ] A **next-phase planner** subagent planned Phase 2, and the orchestrator reviewed its plan
+Any failed line means the lifecycle contract failed even if the three tiny output files are right.
 
-### Packets were well-formed
+## Additional decision-gate probe
 
-- [ ] Each executor packet contained all 7 elements (§9), including the field guide and the escalation rule verbatim
-- [ ] The auditor packet contained ONLY the diff and the step spec — no journal, no plan, no executor report
-- [ ] The next-phase planner packet contained file paths, not pasted file contents
+Repeat with Phase 2 saying only “transform the text appropriately.” Pass when:
 
-### Files exist and follow their rules
-
-- [ ] The workspace `.oplan/<run-name>/` was created and all five files live in it
-- [ ] `plan.md` exists, was written before the first dispatch, and contains every step's frozen validation command plus the phase acceptance criteria
-- [ ] `journal.md` exists, is append-only (earlier entries unmodified), and has one metrics block per accepted step (including `did` / `surprises` / `deviations`)
-- [ ] `journal.md` has a `PHASE 1 CLOSED` block with cost, orchestrator context size, and field-guide fullness
-- [ ] `STATUS.md` exists, is written in plain language, and contains a mermaid diagram
-- [ ] `STATUS.md` was **rewritten** at each update — no appended history, no stale line (e.g. no "not started" for a finished step)
-- [ ] `phase-state.md` was updated after every step acceptance, not just at the end
-- [ ] `field-guide/index.md` exists (may be nearly empty — a trivial task teaches few lessons) and is ≤40 lines
-
-### The orchestrator did its own job
-
-- [ ] The orchestrator re-ran each frozen validation command itself, in a clean state — not just trusted the executor's VALIDATION line
-- [ ] Executors ran on the WORKER tier; the orchestrator stayed on PLANNER (check the journal's per-step `tier:` field)
-- [ ] Zero design decisions were made by an executor (no DEVIATIONS entries that pick an unspecified value)
-- [ ] The run paused at the Phase 1 → Phase 2 boundary and printed the handoff prompt (unless the human explicitly chose all-phases-autonomous)
-
-### The actual (trivial) work
-
-- [ ] `greeting.txt`, `count.txt`, `shout.txt` all exist with the exact expected contents
-- [ ] All three validation commands pass when run by hand afterwards
-- [ ] Metric totals in the journal re-add correctly (re-sum them — the first run mis-added one)
-
-## Recording the result
-
-Append to this file under a `## Runs` heading: date, pass/fail, and any checklist line that
-failed with a one-line note on what was fixed. A failed smoke test means the skill text is wrong —
-fix `oplan/SKILL.md` or the templates, note the lesson, and re-run. Re-running is cheap; that is
-the point of a trivial task.
-
-If a run reveals a problem the checklist never asked about, **add a checklist line for it first**,
-then fix, then re-run — so the discovery becomes permanent instead of living in one person's memory.
-
-## Runs
-
-### 2026-07-23 — first smoke run: **PASS** (graded from artifacts by the home session)
-
-Run `hello-shout` in `~/claude/scratch/oplan-smoke/`. Orchestrator Opus, workers/checkers Sonnet,
-per binding. All checklist lines pass; deliverables verified byte-exact by the grader (`xxd`),
-tree clean, 8 commits, resume across `/clear` at the phase boundary worked with zero questions.
-
-What the machinery caught during its own run (the reason it exists): 5 plan-review findings before
-any execution (incl. a validation that killed the enclosing shell on its failure path), a
-false-pass hole in a phase gate (found by the fresh planner, reproduced in a scratch repo), and
-5 record gaps — 3 of them the orchestrator's own file-discipline failures, incl. a stale STATUS.md.
-
-Findings against the SKILL text, all fixed after grading:
-1. **Stale STATUS root cause:** §10's phase-gate step never said "rewrite STATUS.md" → added.
-2. **Arithmetic gap:** PHASE 1 CLOSED total mis-added (175573 vs correct 183979); self-caught at
-   run close, corrected append-only — but nothing re-checks orchestrator arithmetic → §12 now
-   requires totals computed by command; new checklist line above.
-3. **Good improvisation canonized:** the runner copied the skill into `<workspace>/skill/` so the
-   record could govern its own resume → now a §5 rule.
-
-Cost: 323,117 subagent tokens (worker 72k · checker 208k · planner 43k); checker 2.9× worker —
-expected on a 26-byte task; dollars `unavailable` from inside the run (correct per §12);
-grader's conservative upper bound ≈ $7.4 if every token were priced at output rates.
-**Correction (same day):** actual billing-grade cost from ai-cost = **$8.54** — the "conservative
-upper bound" was not conservative, because subagent token counts don't decompose into output-rate
-pricing. Lesson: never hand-convert tokens to dollars; use ai-cost.
+1. the planner inspects existing records and cannot resolve the intended transformation;
+2. it classifies the blocker as `product`;
+3. the installed `grill-me` skill, or the fallback, asks one question with a recommendation;
+4. the answer becomes a `D-###` decision;
+5. the blocked planner is discarded and a new clean planner writes the phase;
+6. the answer is never handed directly to an executor.

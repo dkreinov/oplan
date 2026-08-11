@@ -1,6 +1,6 @@
 # Paper test — read the skill as if you had to obey it
 
-**Rung 1 of the test ladder.** Costs almost nothing, catches the defects that would otherwise cost
+**Rung 2 of the test ladder.** Costs almost nothing, catches the defects that would otherwise cost
 a whole drill run to discover. Run it after any change to `oplan/SKILL.md` or the templates.
 
 **What it proves:** that the text can actually be followed — by each role, with only what that
@@ -14,18 +14,23 @@ under pressure (that is the fire drill).
 Use fresh eyes: a subagent, or a session that did not write the text. The author cannot see his
 own two-way-readable sentence — he knows which way he meant it.
 
-Read `oplan/SKILL.md` and all three templates, then walk through the text **playing each role in
-turn**, writing down what you could and could not do:
+Read `oplan/SKILL.md`, every directly linked template/reference, and the contract validator. Then
+walk through the text **playing each role in turn**, writing down what you could and could not do:
 
-1. **Orchestrator** — could you execute §10 end to end without inventing a rule that isn't
-   written? What happens at the seams: the first dispatch, a failed audit, a malformed report, a
-   phase gate that fails?
-2. **Plan reviewer** — is your packet and your output format actually defined anywhere?
-3. **Executor** — read the packet as if it were your entire world. What would you be forced to
+1. **Harness** — can you follow only `phase-state.md` and capped reports without planning,
+   implementing, or reading full artifacts? Does every nonterminal state have one next action?
+2. **Phase planner** — can you plan Phase 1 and later phases from files, resolve implementation
+   choices, classify true blockers, and write complete sealed packets?
+3. **Plan reviewer** — can you detect decision overlap, coarse decomposition, intent drift, and
+   weak phase acceptance from artifacts alone?
+4. **Executor** — read the packet as if it were your entire world. What would you be forced to
    guess? Which instruction reads two ways? Do any two rules in the same packet conflict?
-4. **Auditor** — with only diff + spec, can you always produce a legal verdict?
-5. **Next-phase planner** — with only the listed files, can you produce the required output? Is
-   anything you need never written to those files by anyone?
+5. **Spec auditor** — with only packet + scoped diff, can you always produce a legal verdict?
+6. **System reviewer** — can you inspect integrated behavior without duplicating the spec lens?
+7. **Grill gate** — does it invoke the human only for material product/authority decisions and
+   then force a clean replan?
+8. **Researcher and curator** — can each act from named artifacts, write only owned records, and
+   return a verdict with one deterministic transition?
 
 Then hunt these five defect classes across every file:
 
@@ -56,6 +61,9 @@ ambiguity.
 - [ ] Every should-fix either applied or explicitly accepted with a reason
 - [ ] The frozen contracts (report format, escalation sentence, budget, ladder) are identical everywhere they appear
 - [ ] A finding that is really a **design-level** contradiction is escalated to the human, not patched silently — `DESIGN.md` is frozen
+- [ ] A successful phase cannot produce a final response while a later phase exists
+- [ ] Phase 1 and later phases use the same clean-planner path
+- [ ] `python3 oplan/scripts/validate_skill_contracts.py` passes
 
 ## Runs
 

@@ -1,5 +1,10 @@
 # How this skill was planned, built, and audited
 
+> **v0.2 note (2026-08-11):** this document records how v0.1 was built. The current architecture
+> is defined by `DESIGN.md` and `oplan/SKILL.md`. v0.2 replaces the default phase-boundary pause,
+> main-thread Phase 1 planning, and external-only design interrogation with a thin autonomous
+> harness, fresh planners for every phase, and an optional material-decision grill gate.
+
 > The method record — written 2026-07-23, the day the whole thing happened. If a future project
 > wants to build something the same careful way, this is the recipe. Simple-explainer style on
 > purpose (see DESIGN.md §16).
