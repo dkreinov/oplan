@@ -50,6 +50,15 @@ def path_state(repo: Path, relative: str) -> dict[str, str]:
     return {"worktree": worktree, "index": hashlib.sha256(index).hexdigest()}
 
 
+def interpreter_cache(relative: str) -> bool:
+    """Bytecode caches are interpreter side effects, not executor writes.
+
+    Running any Python validation regenerates them, so treating them as
+    undeclared writes would deadlock every retry of a Python leaf.
+    """
+    return "__pycache__" in Path(relative).parts or relative.endswith((".pyc", ".pyo"))
+
+
 def collect(repo: Path, excluded: set[str]) -> dict[str, dict[str, str]]:
     paths = nul_paths(git(repo, "diff", "HEAD", "--name-only", "-z"))
     paths |= nul_paths(git(repo, "ls-files", "--others", "--exclude-standard", "-z"))
@@ -57,7 +66,7 @@ def collect(repo: Path, excluded: set[str]) -> dict[str, dict[str, str]]:
     return {
         relative: path_state(repo, relative)
         for relative in sorted(paths - excluded)
-        if relative and not relative.startswith(".git/")
+        if relative and not relative.startswith(".git/") and not interpreter_cache(relative)
     }
 
 

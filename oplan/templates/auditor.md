@@ -1,7 +1,9 @@
 # Spec auditor packet
 
 > Send to a fresh reviewer after mechanical validation passes. Do not give chat history, the
-> executor report, the full plan, or the journal.
+> executor report, the full plan, or the journal. The harness MUST paste the run's
+> `protected_paths` list from `baseline.md` into this prompt — without it the auditor cannot
+> distinguish pre-existing user state from candidate writes.
 
 Check whether Step {{step-id}} matches its sealed packet—nothing more and nothing less.
 
@@ -18,6 +20,12 @@ job after your audit. For new files, run `git add -N <file>` before the scoped d
 visible without staging content. For binary outputs, verify existence, nonzero size, and the
 packet's own verification tooling instead of decoding content. Do not inspect unrelated code or
 infer intent beyond the packet.
+
+Changes on the run's `protected_paths` (pre-existing dirty or user-owned files recorded in
+`baseline.md` before the run started) predate every candidate and are NEVER findings, regardless
+of what `git status` shows. Interpreter caches (`__pycache__/`, `*.pyc`) are side effects of
+running validation, not writes. A boundary finding is valid only for a NEW change that is outside
+both the write set and the protected list.
 
 Check each requirement, dependent decision ID, contract, boundary, and non-goal. Extra work is a
 defect even if it appears useful.
