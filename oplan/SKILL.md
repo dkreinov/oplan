@@ -255,7 +255,9 @@ For each completed leaf:
 5. For `risk: high`, spawn a fresh system reviewer using
    [system-reviewer.md](templates/system-reviewer.md). High risk includes public API/schema,
    persistence, migration, security, concurrency, money, irreversible changes, cross-module
-   behavior, and user-flow state transitions.
+   behavior, user-flow state transitions, and creative or natural-language content whose quality
+   no frozen mechanical validation can prove (such leaves also require a strong worker tier per
+   [model-policy.md](references/model-policy.md)).
 6. Accept only after required gates pass. Stage and path-restricted commit exactly the control record's write set,
    append the journal, update `LAST_ACCEPTED` to the full new commit SHA, update
    `phase-state.md`, and rewrite `STATUS.md`.

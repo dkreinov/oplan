@@ -10,9 +10,14 @@ Read only:
 1. `{{workspace}}/packets/{{step-id}}.md`
 2. the scoped diff from `{{last-accepted-commit}}` over the packet's exhaustive file list
 
-Create the diff yourself so it never travels through the harness. For new files, run
-`git add -N <file>` before the scoped diff so they are visible without staging content. Do not
-inspect unrelated code or infer intent beyond the packet.
+Create the diff yourself so it never travels through the harness. The candidate is UNCOMMITTED:
+it lives in the working tree on top of the last accepted commit, so audit the worktree state
+against that commit — never the contents of the base commit alone. A new untracked file inside
+the write set is the expected shape of the candidate, not a defect; committing is the harness's
+job after your audit. For new files, run `git add -N <file>` before the scoped diff so they are
+visible without staging content. For binary outputs, verify existence, nonzero size, and the
+packet's own verification tooling instead of decoding content. Do not inspect unrelated code or
+infer intent beyond the packet.
 
 Check each requirement, dependent decision ID, contract, boundary, and non-goal. Extra work is a
 defect even if it appears useful.

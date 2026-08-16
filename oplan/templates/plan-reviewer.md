@@ -27,7 +27,10 @@ Attack these failure classes:
     the phase control queue/order/held-out acceptance does not match the reviewed plan.
 
 Write the full review to the versioned path named by the active phase control (for example,
-`{{workspace}}/reviews/phase-{{N}}-plan-r1.md`) and return at most 25 lines:
+`{{workspace}}/reviews/phase-{{N}}-plan-r1.md`). The review FILE itself must end with the same
+machine-readable verdict block shown below — the seal step mechanically greps the artifact for
+`VERDICT: ship`, so a verdict that exists only in your chat report blocks the run. Then return
+at most 25 lines:
 
 ```text
 VERDICT: ship | fix-first | human-decision

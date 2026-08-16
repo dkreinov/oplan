@@ -33,7 +33,12 @@ what an earlier agent probably meant.
    to `design.md` and reference them from every dependent leaf.
 5. Mark each leaf `risk: low|high` with a reason. Public APIs/schemas, persistence, migration,
    security, concurrency, money, irreversible changes, cross-module behavior, and user-flow state
-   transitions are high risk.
+   transitions are high risk. Creative or natural-language content (prose, narration, UX copy,
+   translations — especially in a language other than English) is also high risk: its quality
+   cannot be proven by any frozen mechanical validation, so it needs the strong review lens. For
+   such leaves also set an explicit strong worker tier in the packet (`worker_tier: strong`);
+   the default inexpensive ladder produces fluent-looking but defective text that mechanical
+   gates and cheap auditors will pass.
 6. Write each complete leaf to `{{workspace}}/packets/<step-id>.md` using
    `{{skill_dir}}/templates/executor-packet.md`.
 7. Write its small machine control record to `{{workspace}}/control/<step-id>.json` using the
@@ -47,7 +52,9 @@ what an earlier agent probably meant.
     versioned `blockers/` artifact. Return its path; never leave a blocker only in the report.
 
 When `MODE: repair`, directly address every finding in `SOURCE`. A repair of a packet that was
-already sealed must use a new step/version ID; never overwrite a sealed packet or control record.
+already sealed must use a new step/version ID in the exact form `<phase>.<leaf>-rK` (for example
+`1.4-r2`; the run validator rejects any other shape, such as `1.4b`); never overwrite a sealed
+packet or control record.
 
 ## Blocker classification
 

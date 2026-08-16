@@ -14,6 +14,14 @@ Bind roles by capability tier instead of hardcoding transient model names.
 | Research agent | inexpensive, escalate once if needed | Answer one repository/documentation fact and cite evidence |
 | Evidence reviewer | inexpensive independent checker | Complete one named gap after a low-confidence spec audit |
 
+Exception to the inexpensive-executor rule: a leaf whose product IS creative or natural-language
+content (prose, narration, UX copy, translation — especially non-English) must run on a strong
+tier named in its packet (`worker_tier: strong`). Small models produce fluent-looking text with
+invented words and broken grammar in low-resource languages, and neither frozen mechanical
+validation nor an inexpensive auditor can detect it; the defect surfaces only when a human reads
+the output. Measured example: a cheap-tier worker writing Hebrew narration passed every
+mechanical gate and a cheap spec audit while containing non-words.
+
 Planners, reviewers, researchers, curators, and executors require a genuinely new session/process
 with conversation inheritance disabled. A prompt that says “ignore earlier chat” is not isolation.
 If the host cannot provide a clean context, set `BLOCKED`; do not silently weaken this rule.
