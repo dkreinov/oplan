@@ -75,7 +75,7 @@ PACKET_MARKERS = (
     "STATUS: done | failed | stopped-with-question",
     "FAILURE_CAUSE:",
 )
-CONTROL_KEYS = {"step", "phase", "packet", "write_set", "validation", "risk", "decisions"}
+CONTROL_KEYS = {"step", "phase", "packet", "write_set", "validation", "risk", "decisions", "wall_time_minutes"}
 PHASE_CONTROL_KEYS = {
     "phase", "revision", "name", "queue", "acceptance", "overall_acceptance", "next_phase",
     "plan_review",
@@ -507,6 +507,9 @@ def main() -> int:
         risk = control.get("risk")
         if risk not in {"low", "high"}:
             errors.append(f"{label}: risk must be low or high")
+        wall_time = control.get("wall_time_minutes")
+        if isinstance(wall_time, bool) or not isinstance(wall_time, int) or wall_time < 1:
+            errors.append(f"{label}: wall_time_minutes must be a positive integer")
         control_decisions = control.get("decisions")
         if not isinstance(control_decisions, list) or not all(isinstance(d, str) and re.fullmatch(r"D-\d{3}", d) for d in control_decisions):
             errors.append(f"{label}: decisions must be D-### strings")

@@ -42,7 +42,13 @@ Before planning, run a Git preflight:
    read it but no leaf may touch it. If the task needs one, persist a human decision blocker; do
    not stash, reset, or commit unrelated work.
 4. Write concrete role bindings and the ordered worker ladder to `model-bindings.md`.
-5. Run `validate_run.py` before spawning the first planner.
+5. Record `run_modes:` in `baseline.md`. The default is `autonomous` with automatic leaf commits.
+   Record a supervised value (`pause-between-phases` or `step-by-step`) only when the user's
+   request explicitly asked for it; never infer supervision. Under a supervised mode, the pause
+   point persists a checkpoint blocker and enters `AWAITING_HUMAN_DECISION` instead of continuing:
+   `pause-between-phases` pauses at each non-final `CLOSE_PHASE`, `step-by-step` pauses after each
+   `ACCEPT_LEAF`.
+6. Run `validate_run.py` before spawning the first planner.
 
 ## 2. Control state
 
@@ -129,9 +135,15 @@ For every packet, the planner also writes `control/<step-id>.json`:
   "write_set": ["src/example.py", "tests/test_example.py"],
   "validation": "python -m pytest tests/test_example.py",
   "risk": "low",
-  "decisions": ["D-001"]
+  "decisions": ["D-001"],
+  "wall_time_minutes": 15
 }
 ```
+
+`wall_time_minutes` is a parent-enforced cancellation boundary, never a promise the worker must
+estimate or meet; the packet tells the worker not to rush or self-abort. When an executor is still
+running at the boundary, the harness cancels it and treats the attempt exactly like an executor
+`failed` result in the transition table.
 
 `packet` is workspace-relative; every `write_set` path is Git-root-relative. This is the only leaf artifact the harness reads. It contains exactly what the harness needs to
 validate, scope a revert/commit, route risk, and update decision metrics. It must contain no phase
@@ -198,6 +210,7 @@ never keep them only in chat. `RETRY` mirrors the current action's attempt count
 | plan review `human-decision` | none | persist blocker, then human gate |
 | executor `done` | retain candidate | `VALIDATING`; `RUN_VALIDATION control=<path> attempt=N` |
 | validation pass | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` |
+| executor exceeds `wall_time_minutes` | cancel the agent, revert | count as executor `failed` at the current attempt |
 | executor `failed` or validation fail, attempts <2 | revert | `EXECUTING`; fresh executor at same tier with failing-log path |
 | second failure | revert | `EXECUTING`; fresh executor at next recorded tier |
 | top-tier failure | revert | `BLOCKED`; `NEXT_ACTION: none` |

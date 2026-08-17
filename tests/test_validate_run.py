@@ -33,7 +33,7 @@ class ValidateRunTests(unittest.TestCase):
             (root / filename).write_text("\n", encoding="utf-8")
         request = "Build output.\n"
         (root / "request.md").write_text(request, encoding="utf-8")
-        request_hash = hashlib.sha256(request.encode()).hexdigest()
+        request_hash = hashlib.sha256((root / "request.md").read_bytes()).hexdigest()
         (root / "baseline.md").write_text(
             f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n",
             encoding="utf-8",
@@ -114,6 +114,7 @@ class ValidateRunTests(unittest.TestCase):
                     "validation": validation,
                     "risk": "low",
                     "decisions": [decision],
+                    "wall_time_minutes": 15,
                 },
                 indent=2,
             )
@@ -361,6 +362,17 @@ class ValidateRunTests(unittest.TestCase):
         result = self.run_validator(workspace)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid step ID", result.stdout)
+        self.assertEqual(result.stderr, "")
+
+    def test_wall_time_must_be_positive_integer(self) -> None:
+        workspace = self.make_workspace()
+        control_path = workspace / "control/1.1.json"
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["wall_time_minutes"] = 0
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("wall_time_minutes must be a positive integer", result.stdout)
         self.assertEqual(result.stderr, "")
 
     def test_non_utf8_packet_reports_instead_of_crashing(self) -> None:

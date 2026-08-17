@@ -60,7 +60,9 @@ both megafiles and fear of necessary core changes.
 ## Budgets
 
 - Retry cycles: {{N}}
-- Time/token bound: {{bound}}
+- Wall-time bound: {{wall_time_minutes}} minutes — the harness enforces this as a cancellation
+  boundary. It is not a deadline you must estimate or meet; do not rush, cut corners, or
+  self-abort because of it.
 - Read only the listed files, direct dependencies needed to edit them, and named decisions.
 
 ## Return exactly — maximum 32 lines

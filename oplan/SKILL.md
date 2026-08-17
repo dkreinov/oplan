@@ -73,7 +73,10 @@ Each lowering step must preserve meaning. The files are the memory and the evide
 9. **Explain without blocking.** Phase briefings and reports are mandatory. Wait only in the
    terminal gate `AWAITING_HUMAN_DECISION`.
 10. **No phase-boundary pause.** Continue autonomously by default. `/clear` handoffs are a manual
-    recovery option, never the normal control flow.
+    recovery option, never the normal control flow. Only when the user's request explicitly asks
+    for supervision, record `run_modes` in `baseline.md` at initialization and honor the requested
+    checkpoints through the `AWAITING_HUMAN_DECISION` gate; never infer a pause the user did not
+    ask for.
 11. **Clean artifacts.** Every role-written Markdown/JSON artifact must pass format validation and
     contain no trailing whitespace. Run the workspace validator after every artifact-writing role.
 
@@ -278,6 +281,9 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
 - Revert only the control record's exhaustive write set and never a protected baseline path.
 - A retry re-verifies the original seal and uses a fresh executor. The ordered tier ladder comes
   from `model-bindings.md`; “next stronger” is never inferred during the run.
+- The control record's `wall_time_minutes` is a parent-enforced cancellation boundary, never a
+  worker promise. Cancel an attempt still running at the boundary, revert it, and count it
+  exactly like an executor `failed` result.
 - A pre-acceptance system repair reverts the candidate before clean repair planning. A phase-gate
   repair retains accepted commits and creates a newly reviewed repair leaf.
 - Top-tier failure, two malformed reports, two mismatches, seal mutation, or irreconcilable state
