@@ -383,6 +383,30 @@ class ValidateRunTests(unittest.TestCase):
         self.assertIn("artifact must be UTF-8 text", result.stdout)
         self.assertEqual(result.stderr, "")
 
+    def test_commit_mode_must_be_auto_or_none(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8") + "commit_mode: bogus\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("commit_mode must be auto or none", result.stdout)
+
+    def test_protected_baseline_overlap_allowed_under_commit_mode_none(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace(
+                "protected_paths: []", 'protected_paths: ["output.txt"]'
+            )
+            + "commit_mode: none\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 def re_sub(pattern: str, replacement: str, text: str) -> str:
     import re

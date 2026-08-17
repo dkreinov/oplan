@@ -279,6 +279,8 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
 
 - Follow the total transition table in `state-and-records.md`; it is normative over this summary.
 - Revert only the control record's exhaustive write set and never a protected baseline path.
+  Reverts use the guard's byte-level `restore`, so they preserve uncommitted pre-attempt content
+  instead of resetting to a commit.
 - A retry re-verifies the original seal and uses a fresh executor. The ordered tier ladder comes
   from `model-bindings.md`; “next stronger” is never inferred during the run.
 - The control record's `wall_time_minutes` is a parent-enforced cancellation boundary, never a

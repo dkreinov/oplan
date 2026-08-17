@@ -47,7 +47,9 @@ Before planning, run a Git preflight:
    request explicitly asked for it; never infer supervision. Under a supervised mode, the pause
    point persists a checkpoint blocker and enters `AWAITING_HUMAN_DECISION` instead of continuing:
    `pause-between-phases` pauses at each non-final `CLOSE_PHASE`, `step-by-step` pauses after each
-   `ACCEPT_LEAF`.
+   `ACCEPT_LEAF`. Also record `commit_mode:` in `baseline.md`. The default is `auto` — accepted
+   leaves are committed. Record `none` only when the user's request explicitly forbids commits;
+   never infer it.
 6. Run `validate_run.py` before spawning the first planner.
 
 ## 2. Control state
@@ -186,8 +188,10 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 
 ## 5. Total verdict transitions
 
-Follow this table mechanically. “Revert” means restore only the control record's write set to
-`LAST_ACCEPTED`, removing newly created paths, while preserving every protected baseline path.
+Follow this table mechanically. “Revert” means run
+`worktree_guard.py restore <git-root> <snapshot> <control>`, which restores every write-set path to
+its exact pre-attempt bytes — preserving uncommitted content that predated the attempt — while
+never touching a path outside the write set or a protected baseline path.
 Before every fresh role starts, set state/`ACTIVE_AGENT`. Persist its capped return atomically to
 `attempts/<role>-<scope>-a<N>.report` before interpreting it or advancing state. For an executor,
 the guard snapshot explicitly excludes that one expected report path so it can be persisted before
@@ -247,7 +251,11 @@ never keep them only in chat. `RETRY` mirrors the current action's attempt count
 `ACCEPT_LEAF` verifies the seal, stages only `write_set`, and commits with path-restricted Git
 semantics (`git commit --only -- <write_set>`) so unrelated pre-staged changes cannot enter. Verify
 the commit diff contains no path outside the intended write set, record its full SHA as `LAST_ACCEPTED`,
-append the journal, and advance to the next leaf or phase gate. At phase
+append the journal, and advance to the next leaf or phase gate. Under `commit_mode: none`, do not
+commit — instead record the accepted write-set per-path SHA-256 list in
+`attempts/<step>-accepted.json`, keep `LAST_ACCEPTED` at the baseline commit SHA, and note the
+accepted hashes in the journal. Under `commit_mode: none`, a write set may overlap protected
+baseline paths because attempt snapshots, not commits, preserve pre-existing bytes. At phase
 close, write the report and, if another phase exists, atomically set `STATE: PLANNING` and
 `PHASE_CONTROL: none` and `NEXT_ACTION: SPAWN_PHASE_PLANNER phase=N+1 mode=new source=none` before printing. The final phase
 becomes `COMPLETE` only after curation and overall acceptance.
@@ -278,8 +286,8 @@ the report path, exact `QUESTION`, affected step, and repair resume action into
 sources and are written by the planner/reviewer that reports them.
 
 Immediately before dispatching an executor, run
-`worktree_guard.py capture <git-root> <attempt-snapshot> <expected-report-relative-path>` after the
-state update. Immediately after its capped return, atomically persist only that excluded report,
+`worktree_guard.py capture <git-root> <attempt-snapshot> <control> <expected-report-relative-path>`
+after the state update. Immediately after its capped return, atomically persist only that excluded report,
 then run `worktree_guard.py check <git-root> <snapshot> <control> <workspace>` before interpreting
 the verdict or writing anything else. Any changed path outside the
 control write set, including `.oplan` or a pre-existing dirty path, is a scope violation: preserve

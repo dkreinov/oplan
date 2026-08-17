@@ -21,6 +21,11 @@ visible without staging content. For binary outputs, verify existence, nonzero s
 packet's own verification tooling instead of decoding content. Do not inspect unrelated code or
 infer intent beyond the packet.
 
+When the run's `baseline.md` records `commit_mode: none`, accepted work is uncommitted, so build
+the scoped diff between the pre-attempt snapshot copies at `{{attempt-snapshot}}.files/` and the
+current worktree, over exactly the packet's file list; a path missing from the sidecar with
+recorded state "missing" diffs against empty.
+
 Changes on the run's `protected_paths` (pre-existing dirty or user-owned files recorded in
 `baseline.md` before the run started) predate every candidate and are NEVER findings, regardless
 of what `git status` shows. Interpreter caches (`__pycache__/`, `*.pyc`) are side effects of

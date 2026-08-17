@@ -275,9 +275,15 @@ def main() -> int:
         errors.append(f"phase-state.md: LAST_ACCEPTED commit does not exist: {last_accepted}")
 
     protected_paths: set[str] = set()
+    commit_mode = "auto"
     baseline_path = workspace / "baseline.md"
     if baseline_path.is_file():
         baseline = baseline_path.read_text(encoding="utf-8")
+        mode_match = re.search(r"^commit_mode:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if mode_match:
+            commit_mode = mode_match.group(1)
+            if commit_mode not in {"auto", "none"}:
+                errors.append("baseline.md: commit_mode must be auto or none")
         match = re.search(r"^commit:\s*([0-9a-f]{40}(?:[0-9a-f]{24})?)\s*$", baseline, re.MULTILINE)
         if not match:
             errors.append("baseline.md: missing full 'commit: <SHA>'")
@@ -498,9 +504,10 @@ def main() -> int:
         for path in write_set:
             if paths_overlap(path, ".git") or (workspace_rel and paths_overlap(path, workspace_rel)):
                 errors.append(f"{label}: write_set overlaps Git metadata or oplan workspace: {path}")
-            for protected in protected_paths:
-                if paths_overlap(path, protected):
-                    errors.append(f"{label}: write_set {path} overlaps protected baseline path {protected}")
+            if commit_mode == "auto":
+                for protected in protected_paths:
+                    if paths_overlap(path, protected):
+                        errors.append(f"{label}: write_set {path} overlaps protected baseline path {protected}")
         validation = control.get("validation")
         if not isinstance(validation, str) or not validation.strip():
             errors.append(f"{label}: validation must be nonempty")
