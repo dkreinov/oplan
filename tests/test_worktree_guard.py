@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,6 +12,30 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 GUARD = REPO / "oplan/scripts/worktree_guard.py"
+
+
+def downgrade_snapshot(path: Path, extra_states: dict[str, dict[str, str]] | None = None) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.pop("schema", None)
+
+    def downgrade(value: str) -> str:
+        parts = value.split(":")
+        if parts[0] in ("file", "symlink") and len(parts) == 3:
+            return f"{parts[0]}:{parts[2]}"
+        if parts[0] == "directory":
+            return "directory"
+        return value
+
+    data["states"] = {
+        relative: {"worktree": downgrade(state["worktree"]), "index": state["index"]}
+        for relative, state in data.get("states", {}).items()
+    }
+    data["write_set_states"] = {
+        relative: downgrade(state) for relative, state in data.get("write_set_states", {}).items()
+    }
+    if extra_states is not None:
+        data["states"].update(extra_states)
+    path.write_text(json.dumps(data), encoding="utf-8")
 
 
 class WorktreeGuardTests(unittest.TestCase):
@@ -111,6 +137,198 @@ class WorktreeGuardTests(unittest.TestCase):
         )
         result = self.run_guard("restore", self.repo, self.snapshot, mismatched_control)
         self.assertNotEqual(result.returncode, 0)
+
+    def test_capture_rejects_symlink_write_set(self) -> None:
+        link = self.repo / "allowed.txt"
+        target = self.repo / "target.txt"
+        target.write_text("data\n", encoding="utf-8")
+        try:
+            link.symlink_to(target)
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("traverses a symlink or junction", result.stdout)
+
+    def test_capture_rejects_symlink_ancestor(self) -> None:
+        real = self.repo / "realdir"
+        real.mkdir()
+        link = self.repo / "linkdir"
+        try:
+            link.symlink_to(real, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        self.control.write_text(
+            json.dumps({"write_set": ["linkdir/allowed.txt"]}) + "\n", encoding="utf-8"
+        )
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("traverses a symlink or junction", result.stdout)
+
+    def test_capture_rejects_symlink_descendant_in_directory_write_set(self) -> None:
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "real.txt").write_text("data\n", encoding="utf-8")
+        outside_target = self.repo / "outside_target.txt"
+        outside_target.write_text("x\n", encoding="utf-8")
+        link = bundle / "link.txt"
+        try:
+            link.symlink_to(outside_target)
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("directory contains a symlink or junction", result.stdout)
+
+    def test_restore_reverts_directory_tree(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        before_file = bundle / "before.bin"
+        before_file.write_bytes(b"\x00\xff")
+        self.capture()
+        before_file.unlink()
+        (bundle / "after.txt").write_text("new\n", encoding="utf-8")
+        result = self.run_guard("restore", self.repo, self.snapshot, self.control)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((bundle / "before.bin").read_bytes(), b"\x00\xff")
+        self.assertFalse((bundle / "after.txt").exists())
+
+    def test_restore_reports_unsupported_symlink_state(self) -> None:
+        (self.repo / "allowed.txt").write_text("before\n", encoding="utf-8")
+        self.capture()
+        data = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        data["write_set_states"]["allowed.txt"] = "symlink:777:" + "0" * 64
+        self.snapshot.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_guard("restore", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "cannot restore symlink write_set path (unsupported): allowed.txt", result.stdout
+        )
+
+    def test_check_ignores_pytest_cache_writes(self) -> None:
+        cache_file = self.repo / ".pytest_cache/v/cache/nodeids"
+        cache_file.parent.mkdir(parents=True)
+        cache_file.write_bytes(b"before")
+        self.capture()
+        cache_file.write_bytes(b"after-changed")
+        (self.repo / "allowed.txt").write_text("ok\n", encoding="utf-8")
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_check_accepts_write_set_path_with_different_casing(self) -> None:
+        probe = self.repo / "case-probe"
+        probe.write_text("x\n", encoding="utf-8")
+        if not os.path.exists(self.repo / "CASE-PROBE"):
+            probe.unlink()
+            self.skipTest("case-sensitive filesystem")
+        probe.unlink()
+        self.control.write_text(json.dumps({"write_set": ["Allowed.TXT"]}) + "\n", encoding="utf-8")
+        self.capture()
+        (self.repo / "allowed.txt").write_text("ok\n", encoding="utf-8")
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_capture_stamps_the_snapshot_state_grammar(self) -> None:
+        self.capture()
+        data = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        self.assertEqual(data["schema"], "oplan-worktree-snapshot/v2")
+
+    def test_check_accepts_pre_mode_snapshot_without_false_violations(self) -> None:
+        (self.repo / "allowed.txt").write_text("before\n", encoding="utf-8")
+        (self.repo / "outside.txt").write_text("original\n", encoding="utf-8")
+        self.capture()
+        downgrade_snapshot(self.snapshot)
+        (self.repo / "allowed.txt").write_text("after\n", encoding="utf-8")
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("predates the mode-tagged state grammar", result.stdout)
+        self.assertNotIn("undeclared write", result.stdout)
+
+    def test_check_ignores_snapshot_paths_outside_current_collection_membership(self) -> None:
+        (self.repo / "allowed.txt").write_text("before\n", encoding="utf-8")
+        self.capture()
+        downgrade_snapshot(
+            self.snapshot,
+            {
+                ".pytest_cache/CACHEDIR.TAG": {"worktree": "file:" + "a" * 64, "index": "b" * 64},
+                ".pytest_cache/v/cache/nodeids": {"worktree": "file:" + "c" * 64, "index": "b" * 64},
+            },
+        )
+        (self.repo / "allowed.txt").write_text("after\n", encoding="utf-8")
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("undeclared write", result.stdout)
+        self.assertNotIn(".pytest_cache", result.stdout)
+
+    def test_check_rejects_unknown_snapshot_state_grammar(self) -> None:
+        self.capture()
+        data = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        data["schema"] = "oplan-worktree-snapshot/v9"
+        self.snapshot.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unsupported snapshot state grammar", result.stdout)
+
+    def test_restore_accepts_pre_mode_snapshot(self) -> None:
+        (self.repo / "allowed.txt").write_bytes(b"before\n")
+        self.capture()
+        downgrade_snapshot(self.snapshot)
+        (self.repo / "allowed.txt").write_text("attempt\n", encoding="utf-8")
+        result = self.run_guard("restore", self.repo, self.snapshot, self.control)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("worktree guard: RESTORED", result.stdout)
+        self.assertNotIn("restore mismatch", result.stdout)
+        self.assertEqual((self.repo / "allowed.txt").read_bytes(), b"before\n")
+
+    def test_restore_rejects_unknown_snapshot_state_grammar(self) -> None:
+        self.capture()
+        data = json.loads(self.snapshot.read_text(encoding="utf-8"))
+        data["schema"] = "oplan-worktree-snapshot/v9"
+        self.snapshot.write_text(json.dumps(data), encoding="utf-8")
+        result = self.run_guard("restore", self.repo, self.snapshot, self.control)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unsupported snapshot state grammar", result.stdout)
+
+    def test_restore_reports_linklike_write_set_path(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "before.bin").write_bytes(b"\x00\xff")
+        self.capture()
+        shutil.rmtree(bundle)
+        if os.name != "nt":
+            self.skipTest("junctions require Windows")
+        outside_dir = Path(tempfile.mkdtemp(prefix="oplan-outside-"))
+        try:
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(bundle), str(outside_dir)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest(f"mklink unavailable: {(result.stdout or result.stderr).strip()}")
+            restore_result = self.run_guard("restore", self.repo, self.snapshot, self.control)
+            self.assertEqual(restore_result.returncode, 2)
+            self.assertIn(
+                "is a symlink or junction; remove it and rerun restore: bundle",
+                restore_result.stdout,
+            )
+            self.assertTrue(outside_dir.exists())
+        finally:
+            shutil.rmtree(outside_dir, ignore_errors=True)
+
+    def test_check_rejects_bare_attempts_exclusion(self) -> None:
+        result = self.run_guard(
+            "capture", self.repo, self.snapshot, self.control, ".oplan/test/attempts"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        check_result = self.run_guard(
+            "check", self.repo, self.snapshot, self.control, self.workspace
+        )
+        self.assertEqual(check_result.returncode, 2)
+        self.assertIn("snapshot excludes paths outside workspace attempts", check_result.stdout)
 
 
 if __name__ == "__main__":
