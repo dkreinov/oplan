@@ -16,34 +16,27 @@ flowchart TD
     N -->|no| D[Complete]
 ```
 
-## What changed in v0.2
+## How it works
 
-- Phase 1 and later phases are planned by fresh strong agents; the main thread never plans or codes.
-- Successful phases continue automatically. Only complete, blocked, or material human-decision
-  states stop the run.
-- Phase planners write review-ready executor packets directly; the harness seals them after
-  independent review, so plans and diffs do not fill the main thread's context.
-- Every leaf has a reviewed machine control record and SHA-256 seal, so the thin harness can
-  validate, revert, and commit safely without reading the feature plan.
-- A worktree guard rejects undeclared writes; versioned attempt reports/questions make retries and
-  resume crash-safe.
-- Optional `grill-me` is used only when a planner cannot resolve a material product/design question.
+- The main thread is a thin state machine: it never plans features or writes product code. Fresh
+  strong planners decompose each phase into review-ready executor packets; a fresh plan reviewer
+  attacks the plan before anything runs.
+- Every leaf has a reviewed machine control record and SHA-256 seal, so the harness can validate,
+  revert, and commit safely without reading the feature plan. Runs continue automatically through
+  successful phases and stop only for completion, a blocker, or a material human decision.
+- A worktree guard snapshots each attempt's write set byte-for-byte, rejects undeclared writes,
+  and reverts failed attempts to their exact pre-attempt bytes — uncommitted content that predated
+  the attempt survives.
+- Each leaf control carries a `wall_time_minutes` bound the harness enforces as a cancellation
+  boundary, so a stuck executor becomes an ordinary failed attempt instead of a hung run.
+- Autonomous auto-commit is the default. Supervised checkpoints (`pause-between-phases`,
+  `step-by-step`) and `commit_mode: none` (no-commit runs audited from snapshot bytes) exist only
+  when the user explicitly asks for them.
+- Stable decision IDs keep separate leaves from inventing incompatible versions of one concept;
+  workers can flag megafiles and necessary core changes without opportunistically expanding scope.
 - High-risk work and every phase gate receive a second, codebase-level review lens.
-- Stable decision IDs prevent separate leaves from inventing incompatible versions of one concept.
-- Workers can flag megafiles and necessary core changes without opportunistically expanding scope.
 
-## Hardening since v0.2
-
-- Every leaf control carries a `wall_time_minutes` bound the harness enforces as a cancellation
-  boundary — a stuck executor becomes an ordinary failed attempt, never a hung run.
-- Runs stay autonomous with automatic commits by default; supervised checkpoints
-  (`pause-between-phases`, `step-by-step`) exist only when the user explicitly asks and are
-  recorded as `run_modes` in `baseline.md`.
-- The worktree guard captures byte-for-byte snapshots of each attempt's write set, and reverts
-  restore exact pre-attempt bytes — uncommitted content that predated the attempt survives.
-- `commit_mode: none` supports runs that must not commit: acceptance records per-path hashes,
-  the auditor diffs snapshot bytes against the worktree, and write sets may safely overlap
-  pre-existing dirty files.
+Current reviewed behavior lives in [STATUS.md](STATUS.md).
 
 ## Use it
 
@@ -54,12 +47,11 @@ Run this with oplan. Build <feature>. Keep me informed, continue through all suc
 and stop only for a material decision, a blocker, or completion.
 ```
 
-Autonomous continuation is the default; the extra wording is explanatory, not a magic trigger.
-The run waits only for a persisted material human decision, a blocker, or completion.
+The extra wording is explanatory, not a magic trigger.
 
 If the optional [`grill-me`](https://www.skills.sh/mattpocock/skills/grill-me) skill is installed,
-oplan invokes it only for unresolved product/scope/UX trade-offs. Otherwise it uses a small bundled
-fallback that asks one question at a time with a recommended answer.
+oplan invokes it for unresolved product/scope/UX trade-offs; otherwise a small bundled fallback
+asks one question at a time with a recommended answer.
 
 ## Files
 
@@ -68,25 +60,19 @@ fallback that asks one question at a time with a recommended answer.
 | [`oplan/SKILL.md`](oplan/SKILL.md) | Small load-bearing orchestration contract |
 | [`oplan/templates/`](oplan/templates/) | Planner, curator, research, executor, reviewer, and human-report packets |
 | [`oplan/references/`](oplan/references/) | State, grill gate, and model-binding details loaded only when needed |
-| [`oplan/scripts/`](oplan/scripts/) | Deterministic skill-contract and per-run state/packet validation |
-| [`DESIGN.md`](DESIGN.md) | v0.2 architecture and evidence mapping |
-| [`tests/`](tests/) | Paper, autonomous smoke, and fire-drill tests |
+| [`oplan/scripts/`](oplan/scripts/) | Skill-contract validation, per-run state/packet validation, and the worktree guard |
+| [`DESIGN.md`](DESIGN.md) | Architecture and evidence mapping |
+| [`tests/`](tests/) | pytest suites for the validators and guard, plus paper, smoke, and fire-drill tests |
 
-Run the local contract check:
+Run the local checks:
 
 ```bash
 python3 oplan/scripts/validate_skill_contracts.py
+python3 -m pytest tests/
 ```
-
-Each active run also validates its Git baseline, action grammar, decision state, phase/leaf
-controls, and seals with `oplan/scripts/validate_run.py`; `worktree_guard.py` enforces the write
-boundary around every executor.
 
 ## Evidence
 
 The central influence is Cursor's
-[Agent swarms and the new model economics](https://cursor.com/blog/agent-swarm-model-economics):
-task trees, strict planner/worker separation, specs as prompts, decorrelated review lenses,
-decision propagation, and agent-curated Field Guides. `DESIGN.md` maps every adopted mechanism and
-also explains why oplan does not copy Cursor's high-concurrency VCS machinery while it has one
-sequential product writer.
+[Agent swarms and the new model economics](https://cursor.com/blog/agent-swarm-model-economics);
+[`DESIGN.md`](DESIGN.md) maps every adopted mechanism and the deliberate differences.
