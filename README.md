@@ -35,6 +35,10 @@ flowchart TD
 - Stable decision IDs keep separate leaves from inventing incompatible versions of one concept;
   workers can flag megafiles and necessary core changes without opportunistically expanding scope.
 - High-risk work and every phase gate receive a second, codebase-level review lens.
+- Each run records a depth profile (`fast`, `standard`, `paranoid`) and a work mode
+  (`engineering`, `experiment`) chosen with the user at the start; the profile changes review
+  depth and planning effort only, never the Git baseline, seals, single-writer rule, guard, or
+  commit scoping.
 
 Current reviewed behavior lives in [STATUS.md](STATUS.md).
 

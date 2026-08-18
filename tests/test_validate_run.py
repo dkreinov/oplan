@@ -37,7 +37,8 @@ class ValidateRunTests(unittest.TestCase):
         request_hash = hashlib.sha256((root / "request.md").read_bytes()).hexdigest()
         (root / "baseline.md").write_text(
             f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n"
-            "run_modes: autonomous\ncommit_mode: auto\n",
+            "run_modes: autonomous\ncommit_mode: auto\n"
+            "depth_profile: standard\nwork_mode: engineering\n",
             encoding="utf-8",
         )
         (root / "model-bindings.md").write_text(
@@ -458,6 +459,72 @@ class ValidateRunTests(unittest.TestCase):
         result = self.run_validator(workspace)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("commit_mode must appear exactly once", result.stdout)
+
+    def test_depth_profile_is_required(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("depth_profile: standard\n", ""),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline.md: missing depth_profile", result.stdout)
+
+    def test_depth_profile_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("depth_profile: standard", "depth_profile: bogus"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("depth_profile must be fast, standard, or paranoid", result.stdout)
+
+    def test_depth_profile_must_appear_once(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8") + "depth_profile: standard\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("depth_profile must appear exactly once", result.stdout)
+
+    def test_work_mode_is_required(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("work_mode: engineering\n", ""),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline.md: missing work_mode", result.stdout)
+
+    def test_work_mode_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("work_mode: engineering", "work_mode: bogus"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("work_mode must be engineering or experiment", result.stdout)
+
+    def test_work_mode_must_appear_once(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8") + "work_mode: engineering\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("work_mode must appear exactly once", result.stdout)
 
     def test_commit_mode_none_requires_accepted_state_manifest(self) -> None:
         workspace = self.make_workspace()

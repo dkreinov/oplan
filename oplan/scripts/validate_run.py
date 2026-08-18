@@ -300,6 +300,24 @@ def main() -> int:
                 errors.append(
                     "baseline.md: run_modes must be autonomous, pause-between-phases, or step-by-step"
                 )
+        depth_profile_matches = re.findall(r"^depth_profile:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if not depth_profile_matches:
+            errors.append("baseline.md: missing depth_profile")
+        elif len(depth_profile_matches) > 1:
+            errors.append("baseline.md: depth_profile must appear exactly once")
+        else:
+            depth_profile = depth_profile_matches[0]
+            if depth_profile not in {"fast", "standard", "paranoid"}:
+                errors.append("baseline.md: depth_profile must be fast, standard, or paranoid")
+        work_mode_matches = re.findall(r"^work_mode:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if not work_mode_matches:
+            errors.append("baseline.md: missing work_mode")
+        elif len(work_mode_matches) > 1:
+            errors.append("baseline.md: work_mode must appear exactly once")
+        else:
+            work_mode = work_mode_matches[0]
+            if work_mode not in {"engineering", "experiment"}:
+                errors.append("baseline.md: work_mode must be engineering or experiment")
         match = re.search(r"^commit:\s*([0-9a-f]{40}(?:[0-9a-f]{24})?)\s*$", baseline, re.MULTILINE)
         if not match:
             errors.append("baseline.md: missing full 'commit: <SHA>'")
