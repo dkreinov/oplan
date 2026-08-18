@@ -32,6 +32,19 @@ flowchart TD
 - Stable decision IDs prevent separate leaves from inventing incompatible versions of one concept.
 - Workers can flag megafiles and necessary core changes without opportunistically expanding scope.
 
+## Hardening since v0.2
+
+- Every leaf control carries a `wall_time_minutes` bound the harness enforces as a cancellation
+  boundary — a stuck executor becomes an ordinary failed attempt, never a hung run.
+- Runs stay autonomous with automatic commits by default; supervised checkpoints
+  (`pause-between-phases`, `step-by-step`) exist only when the user explicitly asks and are
+  recorded as `run_modes` in `baseline.md`.
+- The worktree guard captures byte-for-byte snapshots of each attempt's write set, and reverts
+  restore exact pre-attempt bytes — uncommitted content that predated the attempt survives.
+- `commit_mode: none` supports runs that must not commit: acceptance records per-path hashes,
+  the auditor diffs snapshot bytes against the worktree, and write sets may safely overlap
+  pre-existing dirty files.
+
 ## Use it
 
 Install or copy `oplan/` into your agent's skills directory, then ask:
