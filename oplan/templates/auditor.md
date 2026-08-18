@@ -35,13 +35,21 @@ both the write set and the protected list.
 Check each requirement, dependent decision ID, contract, boundary, and non-goal. Extra work is a
 defect even if it appears useful.
 
-Write the full result to `{{workspace}}/reviews/{{step-id}}-spec.md` and return at most 20 lines:
+## Materiality
+
+A finding may block — `fix-first`, `mismatch`, or `repair` — ONLY when you name both (a)
+a concrete trigger scenario reachable in this run's intended use, and (b) why the defect's expected
+cost exceeds the cost of one fix cycle. Every other finding goes under `NOTES` as a non-blocking
+recorded note. Style, completeness, and hypothetical findings never block on their own.
+
+Write the full result to `{{workspace}}/reviews/{{step-id}}-spec.md` and return at most 23 lines:
 
 ```text
 VERDICT: match | mismatch
 FINDINGS:
   - [missing|extra|contract|boundary|decision] <file>:<line> — <issue>
   - none
+NOTES: <=3 non-blocking observations or none
 CONFIDENCE: high | low — <missing evidence, if any>
 PLAIN: <=2 lines
 ```

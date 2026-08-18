@@ -79,6 +79,19 @@ def main() -> int:
         "--phase N --seal",
         "Never wait with no spawned target.",
         "do not wrap it in another command string in any language",
+        "Rigor is proportional; core safety is not.",
+        (
+            "Verification that raises success from ~95% to ~99% is worth it only when the failure "
+            "it prevents costs more than the verification plus the cheap fix."
+        ),
+        "Ask the depth question once at initialization, recommend an answer, and never block the run on it.",
+        "Every status line, briefing, and report leads with what happened and why it matters in ordinary words.",
+        "depth_profile: fast|standard|paranoid",
+        "work_mode: engineering|experiment",
+        (
+            "a non-executor role dispatch — phase planner, plan reviewer, system reviewer, "
+            "spec auditor, phase curator, or research agent"
+        ),
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -142,12 +155,52 @@ def main() -> int:
         "The guard defends against accidental scope violations, not against an executor that deliberately forges harness records.",
         "`ACTION_REQUIRED_KEYS` in `oplan/scripts/validate_run.py`",
         "<python> <skill-dir>/scripts/worktree_guard.py init-accepted",
+        "depth_profile: fast|standard|paranoid",
+        "work_mode: engineering|experiment",
+        "Under `depth_profile: fast` the harness writes the plan-review record itself",
+        "three unsuccessful plan-review rounds",
+        "a measurement that returns a negative or unexpected result is data, not a defect",
+        (
+            "a non-executor role dispatch — phase planner, plan reviewer, system reviewer, "
+            "spec auditor, phase curator, or research agent"
+        ),
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
     require(
         "python3 <skill-dir>" not in state_and_records,
         "state-and-records.md: obsolete contract remains: python3 <skill-dir>",
+        errors,
+    )
+
+    materiality_phrases = [
+        "a concrete trigger scenario reachable in this run's intended use",
+        "NOTES:",
+    ]
+    for relative in (
+        "templates/plan-reviewer.md",
+        "templates/system-reviewer.md",
+        "templates/auditor.md",
+    ):
+        reviewer_text = (ROOT / relative).read_text(encoding="utf-8")
+        for phrase in materiality_phrases:
+            require(
+                phrase in reviewer_text,
+                f"{relative} missing materiality phrase: {phrase}",
+                errors,
+            )
+
+    phase_planner = (ROOT / "templates/phase-planner.md").read_text(encoding="utf-8")
+    require(
+        "Planning effort must not exceed the expected execution effort" in phase_planner,
+        "phase-planner.md missing phrase: Planning effort must not exceed the expected execution effort",
+        errors,
+    )
+
+    human_report = (ROOT / "templates/human-report.md").read_text(encoding="utf-8")
+    require(
+        "lead with what happened and why it matters in ordinary words" in human_report,
+        "human-report.md missing phrase: lead with what happened and why it matters in ordinary words",
         errors,
     )
 

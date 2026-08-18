@@ -53,7 +53,60 @@ Before planning, run a Git preflight:
    before the first dispatch by running this command:
 
    `<python> <skill-dir>/scripts/worktree_guard.py init-accepted <git-root> <workspace>/attempts/accepted-state.json`
-6. Run `validate_run.py` before spawning the first planner.
+6. Record the depth intake in `baseline.md` with exactly one machine-readable
+   `depth_profile: fast|standard|paranoid` line and exactly one
+   `work_mode: engineering|experiment` line. Both are required and neither has a default when
+   absent. The harness asks ONE question in a single message that names its recommendation, the
+   reason for it, and what each level buys and costs in one or two lines each, and it accepts the
+   user's answer verbatim. The recommendation rule is: `paranoid` for safety-critical,
+   irreversible, security-sensitive, or shared-tooling work; `standard` for typical features,
+   refactors, and migrations; `fast` for low blast radius, easy rollback, strong existing
+   coverage, or throwaway work; `work_mode: experiment` when the task is measurement-driven, and
+   `engineering` otherwise. When a task matches more than one of those rows, recommend the more
+   thorough profile (`paranoid` over `standard` over `fast`). When the user cannot answer
+   (autonomous restart or resume), the harness picks by applying that same recommendation rule
+   including its tie-break, records the choice AND its rationale in `journal.md` and `baseline.md`,
+   and proceeds; it never blocks the run on this question.
+   Rigor is proportional; core safety is not.
+7. Run `validate_run.py` before spawning the first planner.
+
+### 1.1 Depth profiles
+
+`depth_profile` is normative for review depth and planning effort:
+
+| Profile | Plan review | Spec audit | System review | Planning effort |
+|---|---|---|---|---|
+| `paranoid` | every revision, uncapped | every leaf | high-risk leaves and every phase gate | reviewers reproduce findings |
+| `standard` | once per phase revision, hard cap of three unsuccessful rounds | every leaf | phase gate plus leaves the planner marked high risk for a material reason | planners do not prototype beyond what an undecided design choice needs |
+| `fast` | no independent plan reviewer | high-risk leaves only | phase gate only | coarser leaves encouraged |
+
+A run workspace whose `baseline.md` predates these two keys is migrated by appending the two
+recorded lines to it, and that append is a harness action because run records are harness-owned and
+no leaf `write_set` may name a path inside `.oplan/`.
+
+These invariants hold in ALL profiles: the Git baseline and protected paths, sealed packets and
+controls, the single product writer, guard capture/check/revert around every executor,
+harness-rerun frozen validation, path-restricted commits, crash-safe records, and
+`validate_run.py` gates. A profile never changes any of them.
+
+Under `depth_profile: fast` the harness writes the plan-review record itself at the versioned
+`reviews/phase-N-plan-rK.md` path named by the phase control, recording that no independent
+reviewer ran under `fast`, what `validate_run.py` checked, and the plan summary, and ending with
+the exact line `VERDICT: ship` so `SEAL_PHASE` is unchanged.
+
+### 1.2 Work mode: experiment
+
+Under `work_mode: experiment` the plan is a run matrix of arms and configurations with a
+measurement plan, success metrics, and a stopping rule. Recording the outcome is the leaf's job:
+a measurement that returns a negative or unexpected result is data, not a defect, so that leaf is
+validated and accepted like any other, never reverted and never retried for its result.
+
+The retry and revert ladder applies only to infrastructure faults — the job never ran, or its
+artifacts are absent or corrupt. A measurement leaf's frozen validation is the existence and
+integrity of its measured artifacts. Plan review checks the matrix and the method once rather than
+each run. The next arm, or the stop, is decided between leaves by a fresh planner from the recorded
+results and is recorded as a new `D-###` with its evidence path. Engineering leaves inside an
+experiment run follow the depth profile normally.
 
 ## 2. Control state
 
@@ -223,7 +276,12 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 
 ## 5. Total verdict transitions
 
-Follow this table mechanically. “Revert” means run
+Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
+a row whose Input names a `depth_profile`, a `work_mode`, or a leaf `risk` is a specialisation of
+the unconditional row with the same input subject, and each such row is placed directly above the
+row it specialises.
+In this table, a non-executor role dispatch — phase planner, plan reviewer, system reviewer, spec auditor, phase curator, or research agent — is every role that carries a wall-time bound but no control JSON.
+“Revert” means run
 `<python> <skill-dir>/scripts/worktree_guard.py restore <git-root> <snapshot> <control>`, which
 restores every write-set path to its exact pre-attempt bytes — preserving uncommitted content that
 predated the attempt — while never touching a path outside the write set or a protected baseline
@@ -248,6 +306,7 @@ the current action's attempt count.
 
 | Input | Candidate treatment | Next state and action |
 |---|---|---|
+| planner `planned` under `depth_profile: fast` | none | install the returned `PHASE_CONTROL`; the harness itself writes the plan-review record at the phase control's `plan_review` path per D-005, ending with the exact line `VERDICT: ship`; no plan reviewer is spawned; `REVIEWING_PLAN`; `SEAL_PHASE phase=N source=<PHASE_CONTROL>` |
 | planner `planned` | none | install returned `PHASE_CONTROL`; `REVIEWING_PLAN`; `SPAWN_PLAN_REVIEWER phase=N source=<PHASE_CONTROL>` |
 | workspace/control validation fail | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
 | `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
@@ -258,17 +317,23 @@ the current action's attempt count.
 | seal success | immutable reviewed artifacts | `EXECUTING`; `REPORT_PHASE_PLAN phase=N source=<PHASE_CONTROL>` |
 | phase-plan report appended/printed | none | `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>` |
 | seal failure/mismatch | revert any unaccepted candidate | `BLOCKED` |
+| third unsuccessful plan-review round under `depth_profile: standard` | none | persist a checkpoint blocker with concrete options, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | plan review `fix-first` | none | `PLANNING`; fresh planner `mode=repair source=<full review path>` |
 | plan review `human-decision` | none | persist blocker, then human gate |
+| measurement leaf `done` under `work_mode: experiment` with a negative or unexpected result | retain candidate | `VALIDATING`; `RUN_VALIDATION control=<path> attempt=N`, exactly like any `done` leaf; the result is recorded, not reverted |
 | executor `done` | retain candidate | `VALIDATING`; `RUN_VALIDATION control=<path> attempt=N` |
+| validation pass, leaf `risk: low`, `depth_profile: fast` | retain candidate | `REVIEWING_RESULT`; `ACCEPT_LEAF control=<path>` (the spec audit is skipped by profile, not by judgement) |
 | validation pass | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` |
 | executor exceeds `wall_time_minutes` | cancel the agent, revert | count as executor `failed` at the current attempt |
+| a non-executor role dispatch exceeds its wall-time bound (first) | no candidate to revert | cancel the agent and redispatch the same role fresh once with explicitly narrowed scope |
+| a non-executor role dispatch exceeds its wall-time bound (second) | no candidate to revert | persist a blocker, then human gate |
 | executor `failed` or validation fail, attempts <2 | revert | `EXECUTING`; fresh executor at same tier with failing-log path |
 | second failure | revert | `EXECUTING`; fresh executor at next recorded tier |
 | top-tier failure | revert | `BLOCKED`; `NEXT_ACTION: none` |
 | first malformed role report | revert executor candidate; otherwise none | redispatch the same role fresh once from original artifacts |
 | second malformed role report | revert executor candidate; otherwise none | `BLOCKED`; `NEXT_ACTION: none` |
 | executor `stopped-with-question` | verify/revert all write-set changes | `PLANNING`; fresh planner `mode=repair source=<question artifact>` |
+| spec audit `match/high` under `depth_profile: fast` | retain | `REVIEWING_RESULT`; `ACCEPT_LEAF control=<path>`, because under `fast` system review runs at the phase gate only (D-013) |
 | spec audit `match/high` | retain | high risk → leaf system review; low risk → `ACCEPT_LEAF` |
 | spec audit `match/low` | retain | `REVIEWING_RESULT`; `COMPLETE_EVIDENCE control=<path> review=<path>` using fresh evidence reviewer |
 | evidence completion becomes high | retain | continue as `match/high` |
@@ -296,6 +361,11 @@ the current action's attempt count.
 | persisted human answer | revert unaccepted candidate if any | `PLANNING`; fresh planner `mode=repair source=<blocker path>` |
 | overall acceptance pass | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N`, print final phase report, then `COMPLETE` |
 | overall acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<overall log>` |
+
+Under `depth_profile: standard`, three unsuccessful plan-review rounds are a hard cap: the third
+persists a checkpoint blocker with concrete options and enters `AWAITING_HUMAN_DECISION` instead of
+dispatching a fourth repair planner. Under `paranoid` plan review is uncapped and unchanged, and
+under `fast` no independent plan reviewer runs at all.
 
 Retry-only context such as a failing-log path belongs in the fresh agent prompt, not in `NEXT_ACTION`.
 Every persisted action must use exactly the arguments listed for that verb in the

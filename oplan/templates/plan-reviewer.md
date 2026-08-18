@@ -26,17 +26,25 @@ Attack these failure classes:
 10. a packet and its control record disagree, a write set overlaps a protected baseline path, or
     the phase control queue/order/held-out acceptance does not match the reviewed plan.
 
+## Materiality
+
+A finding may block — `fix-first`, `mismatch`, or `repair` — ONLY when you name both (a)
+a concrete trigger scenario reachable in this run's intended use, and (b) why the defect's expected
+cost exceeds the cost of one fix cycle. Every other finding goes under `NOTES` as a non-blocking
+recorded note. Style, completeness, and hypothetical findings never block on their own.
+
 Write the full review to the versioned path named by the active phase control (for example,
 `{{workspace}}/reviews/phase-{{N}}-plan-r1.md`). The review FILE itself must end with the same
 machine-readable verdict block shown below — the seal step mechanically greps the artifact for
 `VERDICT: ship`, so a verdict that exists only in your chat report blocks the run. Then return
-at most 25 lines:
+at most 28 lines:
 
 ```text
 VERDICT: ship | fix-first | human-decision
 FINDINGS:
   - [decision|boundary|validation|order|decomposition|acceptance|structure|intent] <step> — <issue>
   - none
+NOTES: <=3 non-blocking observations or none
 BLOCKERS:
   - [repo_fact|product|authority] <question>
   - none

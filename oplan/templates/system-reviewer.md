@@ -34,13 +34,21 @@ Before returning, re-read every file path and decision ID cited in `FINDINGS`, `
 idea, and do not name a proposed artifact absent from the request/design unless creating that exact
 artifact is the issue being raised.
 
-Write the full result to `{{workspace}}/reviews/{{scope}}-system.md` and return at most 25 lines:
+## Materiality
+
+A finding may block — `fix-first`, `mismatch`, or `repair` — ONLY when you name both (a)
+a concrete trigger scenario reachable in this run's intended use, and (b) why the defect's expected
+cost exceeds the cost of one fix cycle. Every other finding goes under `NOTES` as a non-blocking
+recorded note. Style, completeness, and hypothetical findings never block on their own.
+
+Write the full result to `{{workspace}}/reviews/{{scope}}-system.md` and return at most 28 lines:
 
 ```text
 VERDICT: pass | repair | human-decision
 FINDINGS:
   - [flow|decision|duplication|integration|structure|core-change|acceptance|intent] <location> — <issue>
   - none
+NOTES: <=3 non-blocking observations or none
 REPAIR_SCOPE: <smallest new planned leaf or none>
 BLOCKER: <material product/authority decision or none>
 PLAIN: <=2 lines

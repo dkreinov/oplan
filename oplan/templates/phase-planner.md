@@ -18,7 +18,8 @@ Read in order:
 5. the previous phase of `{{workspace}}/journal.md` when present
 6. the artifact named by `SOURCE` when `MODE` is `repair`
 7. `{{workspace}}/field-guide/index.md`
-8. `{{workspace}}/baseline.md` and relevant code/project instructions
+8. `{{workspace}}/baseline.md` and relevant code/project instructions — read its `depth_profile`
+   and `work_mode` lines and plan accordingly
 
 Use no chat history. If the records omit a needed fact, classify it under `BLOCKERS`; do not infer
 what an earlier agent probably meant.
@@ -52,11 +53,34 @@ what an earlier agent probably meant.
 10. For any returned `repo_fact`, `product`, or `authority` blocker, write its exact question,
     classification, evidence already checked, recommended next owner, and resume action to a
     versioned `blockers/` artifact. Return its path; never leave a blocker only in the report.
+11. Keep planning proportional: Planning effort must not exceed the expected execution effort.
+    When it would, plan coarser leaves and let the mechanical gates carry more weight; do not
+    prototype beyond what a genuinely undecided design choice needs.
 
 When `MODE: repair`, directly address every finding in `SOURCE`. A repair of a packet that was
 already sealed must use a new step/version ID in the exact form `<phase>.<leaf>-rK` (for example
 `1.4-r2`; the run validator rejects any other shape, such as `1.4b`); never overwrite a sealed
 packet or control record.
+
+## Depth profile and work mode
+
+Under `standard` and `fast`, mark a leaf `risk: high` only for a material reason — a concrete
+reachable failure whose cost exceeds one fix cycle — and prefer coarser leaves that a single
+inexpensive worker can still finish. Under `paranoid`, today's decomposition and risk-marking rules
+are unchanged. The profile never changes the safety machinery: every leaf still needs one bounded
+write set, one frozen mechanical validation, and no undecided design choice.
+
+Under `work_mode: experiment`, the plan is a run matrix rather than a build tree: name the arms and
+their configs, the measurement plan, the success metrics, and the stopping rule. A measurement
+leaf's frozen validation is the existence and integrity of its measured artifacts, not the value
+they contain. Do not plan the whole matrix as one tree of committed arms: a fresh planner decides
+the next arm or the stop between leaves from the recorded results and records that choice as a new
+`D-###` with its evidence path. Engineering leaves inside an experiment run follow the depth
+profile normally.
+
+Your own dispatch carries a wall-time bound. The harness cancels you at the bound and redispatches
+this role once with explicitly narrowed scope, so plan the cheapest sufficient tree and return
+rather than perfecting later phases.
 
 ## Blocker classification
 

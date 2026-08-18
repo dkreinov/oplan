@@ -85,6 +85,19 @@ Each lowering step must preserve meaning. The files are the memory and the evide
     gate; never infer a pause the user did not ask for.
 11. **Clean artifacts.** Every role-written Markdown/JSON artifact must pass format validation and
     contain no trailing whitespace. Run the workspace validator after every artifact-writing role.
+12. **Proportional rigor.** `baseline.md` records `depth_profile: fast|standard|paranoid` and
+    `work_mode: engineering|experiment` at initialization; both lines are required and neither has
+    a default when absent.
+    Rigor is proportional; core safety is not.
+    Verification that raises success from ~95% to ~99% is worth it only when the failure it prevents costs more than the verification plus the cheap fix.
+    A profile changes review depth and planning effort only — never the Git baseline and protected
+    paths, seals, the single product writer, the worktree guard, harness-rerun frozen validation,
+    path-restricted commits, crash-safe records, or `validate_run.py` gates. The profile table
+    lives in [state-and-records.md](references/state-and-records.md).
+13. **Plain language first.**
+    Every status line, briefing, and report leads with what happened and why it matters in ordinary words.
+    Run-internal vocabulary (leaf IDs, D-numbers, seals, revisions) may follow that lead, but it
+    never leads.
 
 ## 4. Workspace and ownership
 
@@ -104,6 +117,11 @@ Initialization includes a verified full Git commit baseline, protected pre-exist
 and concrete role bindings with an ordered worker ladder. Never use symbolic `HEAD`, commit
 unrelated dirty work, or dispatch from an unborn repository. The reference defines the safe
 unborn/dirty paths.
+
+Initialization also records `depth_profile` and `work_mode` beside `run_modes` and `commit_mode`.
+Ask the depth question once at initialization, recommend an answer, and never block the run on it.
+The reference holds the exact question, the recommendation rule and its tie-break, and the
+autonomous fallback used when no human can answer.
 
 The essential records are:
 
@@ -200,6 +218,17 @@ and `validate_run.py <workspace> --phase N --seal` succeeds; that command perfor
 promotion and writes the reviewed hashes. A `fix-first` transition names the
 full review artifact as `SOURCE` for a fresh repair planner.
 
+Plan review is gated by `depth_profile`. Under `paranoid`, a fresh reviewer reviews every revision,
+uncapped. Under `standard`, a fresh reviewer reviews once per phase revision and three unsuccessful
+rounds enter `AWAITING_HUMAN_DECISION`. Under `fast`, no independent plan reviewer is spawned: the
+harness writes the plan-review record itself at the path the phase control names, ending with the
+exact line `VERDICT: ship`, and `validate_run.py` is the only plan gate.
+
+Under `work_mode: experiment` the plan is a run matrix, measurement leaves are validated by the
+existence and integrity of their artifacts, and a fresh planner decides the next arm between leaves
+from the recorded results. See [state-and-records.md](references/state-and-records.md) for the full
+experiment contract.
+
 ## 7. Optional `grill-me` escalation
 
 Do not invoke `grill-me` merely because a phase ended. Invoke it only at a planning gate when the
@@ -270,8 +299,9 @@ For each completed leaf:
    through the harness.
    If it returns `match` with low confidence, use one fresh
    [evidence reviewer](templates/evidence-reviewer.md) on only the named gap.
-5. For `risk: high`, spawn a fresh system reviewer using
-   [system-reviewer.md](templates/system-reviewer.md). High risk includes public API/schema,
+5. For `risk: high` under `paranoid` and `standard`, spawn a fresh system reviewer using
+   [system-reviewer.md](templates/system-reviewer.md); under `fast` no leaf-level system review is
+   spawned, because system review runs at the phase gate only. High risk includes public API/schema,
    persistence, migration, security, concurrency, money, irreversible changes, cross-module
    behavior, user-flow state transitions, and creative or natural-language content whose quality
    no frozen mechanical validation can prove (such leaves also require a strong worker tier per
@@ -281,6 +311,14 @@ For each completed leaf:
    SHA. Under `commit_mode: none`, update and verify the cumulative `attempts/accepted-state.json`
    instead, and do not stage or commit. In both modes, append the journal, update `phase-state.md`,
    and rewrite `STATUS.md`.
+
+Both lenses are gated by `depth_profile`. The spec audit runs on every leaf under `paranoid` and
+`standard`, and on high-risk leaves only under `fast`. System review runs on high-risk leaves and
+every phase gate under `paranoid`; at the phase gate plus leaves the planner marked high risk for a
+material reason under `standard`; and at the phase gate only under `fast`.
+A reviewer finding blocks only when it is material — a concrete reachable trigger plus an expected
+cost above one fix cycle — and every other finding is journaled as a non-blocking note that is
+never acted on mid-phase.
 
 At every phase gate, run the phase acceptance criteria and a fresh system review, even if every
 leaf was low risk. The system lens looks for integration errors, duplicated concepts, decision-ID
@@ -306,6 +344,11 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
 - The control record's `wall_time_minutes` is a parent-enforced cancellation boundary, never a
   worker promise. Cancel an attempt still running at the boundary, revert it, and count it
   exactly like an executor `failed` result.
+- The six bounded non-executor roles have one collective name:
+  a non-executor role dispatch — phase planner, plan reviewer, system reviewer, spec auditor, phase curator, or research agent — is any dispatch of a role that carries a wall-time bound but no control record.
+  The bounds are phase planner 45 minutes, plan reviewer 30, system reviewer 30, spec auditor 20,
+  phase curator 20, and research agent 20. The harness cancels at the bound, redispatches the same
+  role once fresh with explicitly narrowed scope, and escalates a second overrun to the human gate.
 - A pre-acceptance system repair reverts the candidate before clean repair planning. A phase-gate
   repair retains accepted commits and creates a newly reviewed repair leaf.
 - Top-tier failure, two malformed reports, two mismatches, seal mutation, or irreconcilable state

@@ -3,6 +3,9 @@
 > The harness prints these from capped role reports and verified gate results. Append them to
 > `briefing.md`. Do not expose full plans, diffs, logs, or internal agent vocabulary.
 
+Every line in these blocks must lead with what happened and why it matters in ordinary words.
+Run-internal vocabulary — leaf IDs, D-numbers, seals, revisions — may follow but never leads.
+
 ## Before a phase
 
 ```text
@@ -13,6 +16,7 @@ STEPS:
   - <what happens> — because <why>
 DONE WHEN: <phase acceptance in ordinary words>
 BIGGEST RISK: <risk and how it will be noticed>
+DEPTH: <fast|standard|paranoid> — <one line on what that buys and costs>
 MODE: continuing automatically | waiting for your decision because <reason>
 === END PLAN ===
 ```
