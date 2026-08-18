@@ -378,6 +378,35 @@ class ValidateRunTests(unittest.TestCase):
         self.assertIn("wall_time_minutes must be a positive integer", result.stdout)
         self.assertEqual(result.stderr, "")
 
+    def test_measurement_kind_is_accepted(self) -> None:
+        workspace = self.make_workspace()
+        control_path = workspace / "control/1.1.json"
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["kind"] = "measurement"
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("oplan run validation: PASS", result.stdout)
+
+    def test_kind_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        control_path = workspace / "control/1.1.json"
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["kind"] = "bogus"
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("kind must be measurement or engineering", result.stdout)
+
+    def test_absent_kind_still_validates(self) -> None:
+        workspace = self.make_workspace()
+        control_path = workspace / "control/1.1.json"
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        self.assertNotIn("kind", control)
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("oplan run validation: PASS", result.stdout)
+
     def test_non_utf8_packet_reports_instead_of_crashing(self) -> None:
         workspace = self.make_workspace()
         (workspace / "packets/1.1.md").write_bytes(b"\xff\xfe")

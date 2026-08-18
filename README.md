@@ -36,7 +36,9 @@ flowchart TD
   workers can flag megafiles and necessary core changes without opportunistically expanding scope.
 - High-risk work and every phase gate receive a second, codebase-level review lens.
 - Each run records a depth profile (`fast`, `standard`, `paranoid`) and a work mode
-  (`engineering`, `experiment`) chosen with the user at the start; the profile changes review
+  (`engineering`, `experiment`) chosen with the user at the start, and when no user can answer the
+  harness picks by the same recorded recommendation rule, records the choice and its reason, and
+  never blocks; the profile changes review
   depth and planning effort only, never the Git baseline, seals, single-writer rule, guard, or
   commit scoping.
 

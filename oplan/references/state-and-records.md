@@ -105,8 +105,15 @@ The retry and revert ladder applies only to infrastructure faults — the job ne
 artifacts are absent or corrupt. A measurement leaf's frozen validation is the existence and
 integrity of its measured artifacts. Plan review checks the matrix and the method once rather than
 each run. The next arm, or the stop, is decided between leaves by a fresh planner from the recorded
-results and is recorded as a new `D-###` with its evidence path. Engineering leaves inside an
-experiment run follow the depth profile normally.
+results and is recorded as a new `D-###` with its evidence path.
+Here a measurement leaf is one whose control record carries `kind: measurement`; without it a leaf
+is engineering, and section 5's `ACCEPT_LEAF` rows key on it and dispatch that planner `mode=repair`
+with its recorded results as `source`, so a new arm enters the run as a new phase-control revision
+`control/phase-N-rK.json` whose `queue` names the arm's leaf controls, installed by the `planner
+planned` row, never overwriting the sealed control. On the stopping rule it writes no phase control,
+no plan review, and the planner returns `stop-experiment`, routed to the phase gate: a `queue` may
+not be empty, and a returned control re-opens a sealed review and re-dispatches an accepted leaf.
+Engineering leaves inside an experiment run follow the depth profile normally.
 
 ## 2. Control state
 
@@ -223,6 +230,9 @@ For every packet, the planner also writes `control/<step-id>.json`:
 ```
 
 `validation` stores the resolved `<python>` executable, never the placeholder (D-006).
+A leaf control may also carry one optional `kind: measurement|engineering` field; it is absent by
+default, an absent `kind` means `engineering`, and only `measurement` changes routing (section 5).
+`validate_run.py` rejects any other value.
 
 `wall_time_minutes` is a parent-enforced cancellation boundary, never a promise the worker must
 estimate or meet; the packet tells the worker not to rush or self-abort. When an executor is still
@@ -277,7 +287,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 ## 5. Total verdict transitions
 
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
-a row whose Input names a `depth_profile`, a `work_mode`, or a leaf `risk` is a specialisation of
+a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, or a leaf `risk` is a
+specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
 row it specialises.
 In this table, a non-executor role dispatch — phase planner, plan reviewer, system reviewer, spec auditor, phase curator, or research agent — is every role that carries a wall-time bound but no control JSON.
@@ -308,6 +319,8 @@ the current action's attempt count.
 |---|---|---|
 | planner `planned` under `depth_profile: fast` | none | install the returned `PHASE_CONTROL`; the harness itself writes the plan-review record at the phase control's `plan_review` path per D-005, ending with the exact line `VERDICT: ship`; no plan reviewer is spawned; `REVIEWING_PLAN`; `SEAL_PHASE phase=N source=<PHASE_CONTROL>` |
 | planner `planned` | none | install returned `PHASE_CONTROL`; `REVIEWING_PLAN`; `SPAWN_PLAN_REVIEWER phase=N source=<PHASE_CONTROL>` |
+| planner `stop-experiment`, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker whose recorded resume action is `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>`, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
+| planner `stop-experiment` | accepted commits remain | the active phase control, its `plan_review` artifact, and their seals are unchanged and no new plan-review round opens; `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
 | workspace/control validation fail | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
 | `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
 | planner `record-gap` | none | persist invalid-record evidence, then `BLOCKED` |
@@ -345,6 +358,10 @@ the current action's attempt count.
 | high-risk leaf system `repair` | revert | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | any review `human-decision` | revert unaccepted candidate | persist blocker, then human gate |
 | phase acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<acceptance log>` |
+| `ACCEPT_LEAF` succeeded for a leaf whose control records `kind: measurement`, under `work_mode: experiment` | accepted commits remain | `PLANNING`; `SPAWN_PHASE_PLANNER phase=N mode=repair source=<the accepted measurement leaf's recorded results artifact>`; the fresh planner decides the next arm or the stop from the recorded results (D-007), so no queued arm is dispatched against a stale plan |
+| `ACCEPT_LEAF` succeeded and the phase control's `queue` still names an unstarted leaf, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker naming the next queued control, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
+| `ACCEPT_LEAF` succeeded and the phase control's `queue` still names an unstarted leaf | accepted commits remain | `EXECUTING`; `SPAWN_EXECUTOR control=<next queued control>` |
+| all queued leaves accepted, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker whose recorded resume action is `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>`, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | all queued leaves accepted | accepted commits remain | `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
 | phase acceptance pass | accepted commits remain | `CLOSING_PHASE`; `SPAWN_SYSTEM_REVIEWER scope=phase-N source=<acceptance review>` |
 | phase system `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<system review>` |
@@ -366,6 +383,20 @@ Under `depth_profile: standard`, three unsuccessful plan-review rounds are a har
 persists a checkpoint blocker with concrete options and enters `AWAITING_HUMAN_DECISION` instead of
 dispatching a fourth repair planner. Under `paranoid` plan review is uncapped and unchanged, and
 under `fast` no independent plan reviewer runs at all.
+
+An unsuccessful plan-review round is one whose plan review returns `fix-first`; a `ship` or
+`human-decision` round is not counted. The count is per phase, spans every phase-control revision of
+that phase so a repair planner's new revision continues rather than restarts it, and resets only
+when the phase closes, derived from immutable `reviews/phase-N-plan-rK.md` artifacts, not memory.
+
+Under both `work_mode: experiment` and `run_modes: step-by-step` the measurement row outranks both
+pause rows, so a measurement acceptance routes to the between-leaf planner. On `planned` the run
+continues and the pause takes effect at the next `ACCEPT_LEAF`, one leaf later; on `stop-experiment`
+there is no next `ACCEPT_LEAF`, and instead
+a supervised experiment run takes its checkpoint at the stop, on the `run_modes: step-by-step` row
+directly above the `planner `stop-experiment`` row. A blocker recording a resume action is answered
+by performing it; the `persisted human answer` row's repair planner is for those recording none, so
+both checkpoints reach `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE`, not planning over a sealed control.
 
 Retry-only context such as a failing-log path belongs in the fresh agent prompt, not in `NEXT_ACTION`.
 Every persisted action must use exactly the arguments listed for that verb in the
@@ -448,8 +479,9 @@ becomes `COMPLETE` only after curation and overall acceptance.
 Before any human question, write `blockers/B-###.md` with classification, exact question,
 recommendation, alternatives, evidence already checked, answer field, and resume action; then
 atomically enter `AWAITING_HUMAN_DECISION`. Ask only after the state is durable. On reply, copy the
-answer verbatim into that file and spawn a fresh repair planner with it as `SOURCE`; never pass an
-oral answer to an executor.
+answer verbatim into that file, then perform the resume action that file records; when it records
+none, spawn a fresh repair planner with the file as `SOURCE`. Never pass an oral answer to an
+executor.
 
 Append one compact journal block per accepted leaf with packet/control/seal paths, worker tier,
 validation, `did`, `failure_cause`, surprises, deviations, structural flags, decisions, audit and

@@ -75,8 +75,11 @@ their configs, the measurement plan, the success metrics, and the stopping rule.
 leaf's frozen validation is the existence and integrity of its measured artifacts, not the value
 they contain. Do not plan the whole matrix as one tree of committed arms: a fresh planner decides
 the next arm or the stop between leaves from the recorded results and records that choice as a new
-`D-###` with its evidence path. Engineering leaves inside an experiment run follow the depth
-profile normally.
+`D-###` with its evidence path. Return `stop-experiment` — and only under `work_mode: experiment` —
+when the recorded results satisfy the stopping rule; on that outcome record the stop as a new
+`D-###` with its evidence path and write NO new phase control and NO new plan review, because the
+harness takes the run straight to phase acceptance from that outcome. Engineering leaves inside an
+experiment run follow the depth profile normally.
 
 Your own dispatch carries a wall-time bound. The harness cancels you at the bound and redispatches
 this role once with explicitly narrowed scope, so plan the cheapest sufficient tree and return
@@ -104,7 +107,7 @@ leaf control records; place exact commands only in the active phase control.
 ## Report to the harness — maximum 30 lines
 
 ```text
-STATUS: planned | blocked | record-gap
+STATUS: planned | stop-experiment | blocked | record-gap
 PHASE: <N> <name>
 PHASE_CONTROL: <exact active control/phase-N[-rK].json path or none>
 TREE: <leaf count and one-line shape>

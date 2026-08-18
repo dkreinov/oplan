@@ -198,7 +198,8 @@ packets become sealed only after independent plan-review `ship`.
 Handle the planner report mechanically: `planned` → validate run artifacts then spawn the plan
 reviewer after installing its returned `PHASE_CONTROL`; `record-gap` → persist the invalid-record evidence and set `BLOCKED`; `blocked/repo_fact`
 → send the named question to a fresh research agent; other blockers → apply the grill
-classification below. Never ask an executor to work from a partially planned phase.
+classification below; `stop-experiment` → run phase acceptance for the active phase control without
+spawning a plan reviewer or installing a new one. Never ask an executor to work from a partially planned phase.
 
 The phase plan is a tree, not a forced flat list. Recursively decompose until every leaf:
 
@@ -294,7 +295,8 @@ For each completed leaf:
 3. Run its frozen validation from a fresh shell at the Git root. Treat the stored validation as an opaque top-level command: do not wrap it in another command string in any language, interpolate it through `Invoke-Expression` or any equivalent evaluator, or otherwise let the coordinator shell expand its variables.
    Shell quoting used only to transport the opaque command is not a packet change. Write full
    output to `logs/<step>.log`; expose only exit status and at most 20 tail lines to the harness.
-4. Spawn a fresh spec auditor using [auditor.md](templates/auditor.md). Give artifact paths and
+4. Under `paranoid` and `standard` spawn a fresh spec auditor on every leaf using
+   [auditor.md](templates/auditor.md); under `fast` spawn one only for a `risk: high` leaf. Give artifact paths and
    the last accepted commit; let the auditor create and inspect the scoped diff without routing it
    through the harness.
    If it returns `match` with low confidence, use one fresh

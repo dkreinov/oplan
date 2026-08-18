@@ -160,6 +160,11 @@ def main() -> int:
         "Under `depth_profile: fast` the harness writes the plan-review record itself",
         "three unsuccessful plan-review rounds",
         "a measurement that returns a negative or unexpected result is data, not a defect",
+        "a new arm enters the run as a new phase-control revision",
+        "An unsuccessful plan-review round is one whose plan review returns `fix-first`",
+        "a measurement leaf is one whose control record carries `kind: measurement`",
+        "a supervised experiment run takes its checkpoint at the stop",
+        "perform the resume action that file records",
         (
             "a non-executor role dispatch — phase planner, plan reviewer, system reviewer, "
             "spec auditor, phase curator, or research agent"
@@ -194,6 +199,11 @@ def main() -> int:
     require(
         "Planning effort must not exceed the expected execution effort" in phase_planner,
         "phase-planner.md missing phrase: Planning effort must not exceed the expected execution effort",
+        errors,
+    )
+    require(
+        "stop-experiment" in phase_planner,
+        "phase-planner.md missing phrase: stop-experiment",
         errors,
     )
 

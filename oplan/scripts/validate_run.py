@@ -76,6 +76,7 @@ PACKET_MARKERS = (
     "FAILURE_CAUSE:",
 )
 CONTROL_KEYS = {"step", "phase", "packet", "write_set", "validation", "risk", "decisions", "wall_time_minutes"}
+OPTIONAL_CONTROL_KEYS = {"kind"}
 PHASE_CONTROL_KEYS = {
     "phase", "revision", "name", "queue", "acceptance", "overall_acceptance", "next_phase",
     "plan_review",
@@ -391,7 +392,7 @@ def main() -> int:
                 errors.append(f"{control_path.name}: control must be a JSON object")
                 continue
             missing = CONTROL_KEYS - control.keys()
-            extra = control.keys() - CONTROL_KEYS
+            extra = control.keys() - CONTROL_KEYS - OPTIONAL_CONTROL_KEYS
             if missing or extra:
                 errors.append(f"{control_path.name}: control keys missing={sorted(missing)} extra={sorted(extra)}")
                 continue
@@ -548,6 +549,8 @@ def main() -> int:
         risk = control.get("risk")
         if risk not in {"low", "high"}:
             errors.append(f"{label}: risk must be low or high")
+        if "kind" in control and control.get("kind") not in {"measurement", "engineering"}:
+            errors.append(f"{label}: kind must be measurement or engineering")
         wall_time = control.get("wall_time_minutes")
         if isinstance(wall_time, bool) or not isinstance(wall_time, int) or wall_time < 1:
             errors.append(f"{label}: wall_time_minutes must be a positive integer")
