@@ -86,6 +86,17 @@ class WorktreeGuardTests(unittest.TestCase):
     def verify(self) -> subprocess.CompletedProcess[str]:
         return self.run_guard("verify-accepted", self.repo, self.accepted)
 
+    def make_junction(self, link: Path, target: Path) -> None:
+        if os.name != "nt":
+            self.skipTest("junctions require Windows")
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.skipTest(f"mklink unavailable: {result.stdout or result.stderr}".strip())
+
     def test_only_declared_write_passes(self) -> None:
         self.capture()
         (self.repo / "allowed.txt").write_text("ok\n", encoding="utf-8")
@@ -332,6 +343,53 @@ class WorktreeGuardTests(unittest.TestCase):
             self.assertTrue(outside_dir.exists())
         finally:
             shutil.rmtree(outside_dir, ignore_errors=True)
+
+    def test_capture_rejects_junction_write_set(self) -> None:
+        real = self.repo / "real"
+        real.mkdir()
+        linked = self.repo / "linked"
+        self.make_junction(linked, real)
+        self.control.write_text(json.dumps({"write_set": ["linked"]}) + "\n", encoding="utf-8")
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("traverses a symlink or junction", result.stdout)
+
+    def test_capture_rejects_junction_ancestor(self) -> None:
+        real = self.repo / "real"
+        real.mkdir()
+        linked = self.repo / "linked"
+        self.make_junction(linked, real)
+        self.control.write_text(
+            json.dumps({"write_set": ["linked/value.txt"]}) + "\n", encoding="utf-8"
+        )
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("traverses a symlink or junction", result.stdout)
+
+    def test_capture_rejects_junction_descendant_in_directory_write_set(self) -> None:
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        real = self.repo / "real"
+        real.mkdir()
+        linked = bundle / "linked"
+        self.make_junction(linked, real)
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        result = self.run_guard("capture", self.repo, self.snapshot, self.control)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("directory contains a symlink or junction", result.stdout)
+
+    def test_check_rejects_junction_introduced_under_declared_directory(self) -> None:
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        real = self.repo / "real"
+        real.mkdir()
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        self.capture()
+        linked = bundle / "linked"
+        self.make_junction(linked, real)
+        result = self.run_guard("check", self.repo, self.snapshot, self.control, self.workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("directory contains a symlink or junction", result.stdout)
 
     def test_check_rejects_bare_attempts_exclusion(self) -> None:
         result = self.run_guard(
