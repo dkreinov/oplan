@@ -11,6 +11,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "oplan/scripts/validate_run.py"
+GUARD = REPO / "oplan/scripts/worktree_guard.py"
 
 
 class ValidateRunTests(unittest.TestCase):
@@ -35,7 +36,8 @@ class ValidateRunTests(unittest.TestCase):
         (root / "request.md").write_text(request, encoding="utf-8")
         request_hash = hashlib.sha256((root / "request.md").read_bytes()).hexdigest()
         (root / "baseline.md").write_text(
-            f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n",
+            f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n"
+            "run_modes: autonomous\ncommit_mode: auto\n",
             encoding="utf-8",
         )
         (root / "model-bindings.md").write_text(
@@ -387,7 +389,7 @@ class ValidateRunTests(unittest.TestCase):
         workspace = self.make_workspace()
         baseline = workspace / "baseline.md"
         baseline.write_text(
-            baseline.read_text(encoding="utf-8") + "commit_mode: bogus\n",
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto", "commit_mode: bogus"),
             encoding="utf-8",
         )
         result = self.run_validator(workspace)
@@ -398,14 +400,158 @@ class ValidateRunTests(unittest.TestCase):
         workspace = self.make_workspace()
         baseline = workspace / "baseline.md"
         baseline.write_text(
-            baseline.read_text(encoding="utf-8").replace(
-                "protected_paths: []", 'protected_paths: ["output.txt"]'
-            )
-            + "commit_mode: none\n",
+            baseline.read_text(encoding="utf-8")
+            .replace("protected_paths: []", 'protected_paths: ["output.txt"]')
+            .replace("commit_mode: auto", "commit_mode: none"),
+            encoding="utf-8",
+        )
+        init_result = subprocess.run(
+            [sys.executable, str(GUARD), "init-accepted", str(workspace.parents[1]), str(workspace / "attempts/accepted-state.json")],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(init_result.returncode, 0, init_result.stdout + init_result.stderr)
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_run_modes_is_required(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("run_modes: autonomous\n", ""),
             encoding="utf-8",
         )
         result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline.md: missing run_modes", result.stdout)
+
+    def test_run_modes_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("run_modes: autonomous", "run_modes: bogus"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("run_modes must be autonomous, pause-between-phases, or step-by-step", result.stdout)
+
+    def test_commit_mode_is_required(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto\n", ""),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline.md: missing commit_mode", result.stdout)
+
+    def test_commit_mode_must_appear_once(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8") + "commit_mode: auto\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("commit_mode must appear exactly once", result.stdout)
+
+    def test_commit_mode_none_requires_accepted_state_manifest(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto", "commit_mode: none"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing attempts/accepted-state.json", result.stdout)
+
+    def test_commit_mode_none_requires_current_step_in_manifest(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto", "commit_mode: none"),
+            encoding="utf-8",
+        )
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8").replace(
+                "ACCEPTED_THIS_PHASE: none", "ACCEPTED_THIS_PHASE: 1.1"
+            ),
+            encoding="utf-8",
+        )
+        init_result = subprocess.run(
+            [sys.executable, str(GUARD), "init-accepted", str(workspace.parents[1]), str(workspace / "attempts/accepted-state.json")],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(init_result.returncode, 0, init_result.stdout + init_result.stderr)
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing current accepted steps ['1.1']", result.stdout)
+
+    def test_commit_mode_none_rejects_non_object_manifest_without_traceback(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto", "commit_mode: none"),
+            encoding="utf-8",
+        )
+        (workspace / "attempts/accepted-state.json").write_text("[]\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("accepted-state.json", result.stdout)
+        self.assertNotIn("Traceback", result.stdout + result.stderr)
+
+    def test_commit_mode_none_accepts_a_recorded_step(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("commit_mode: auto", "commit_mode: none"),
+            encoding="utf-8",
+        )
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8").replace(
+                "ACCEPTED_THIS_PHASE: none", "ACCEPTED_THIS_PHASE: 1.1"
+            ),
+            encoding="utf-8",
+        )
+        (workspace.parents[1] / "output.txt").write_text("payload\n", encoding="utf-8")
+        accepted_manifest = workspace / "attempts/accepted-state.json"
+        init_result = subprocess.run(
+            [sys.executable, str(GUARD), "init-accepted", str(workspace.parents[1]), str(accepted_manifest)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(init_result.returncode, 0, init_result.stdout + init_result.stderr)
+        record_result = subprocess.run(
+            [
+                sys.executable,
+                str(GUARD),
+                "record-accepted",
+                str(workspace.parents[1]),
+                str(workspace / "control/1.1.json"),
+                str(accepted_manifest),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(record_result.returncode, 0, record_result.stdout + record_result.stderr)
+        manifest = json.loads(accepted_manifest.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["controls"][0]["path"], ".oplan/test/control/1.1.json")
+        self.assertEqual(Path(manifest["controls"][0]["path"]).stem, "1.1")
+        result = self.run_validator(workspace)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("oplan run validation: PASS", result.stdout)
+        self.assertNotIn("missing current accepted steps", result.stdout)
 
 
 def re_sub(pattern: str, replacement: str, text: str) -> str:

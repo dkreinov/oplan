@@ -86,6 +86,7 @@ MODEL_BINDING_KEYS = {
     "research_ladder",
 }
 SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+WORKTREE_GUARD = Path(__file__).with_name("worktree_guard.py")
 
 
 def git(workspace: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -275,15 +276,30 @@ def main() -> int:
         errors.append(f"phase-state.md: LAST_ACCEPTED commit does not exist: {last_accepted}")
 
     protected_paths: set[str] = set()
-    commit_mode = "auto"
+    commit_mode = ""
     baseline_path = workspace / "baseline.md"
     if baseline_path.is_file():
         baseline = baseline_path.read_text(encoding="utf-8")
-        mode_match = re.search(r"^commit_mode:\s*(\S+)\s*$", baseline, re.MULTILINE)
-        if mode_match:
-            commit_mode = mode_match.group(1)
+        mode_matches = re.findall(r"^commit_mode:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if not mode_matches:
+            errors.append("baseline.md: missing commit_mode")
+        elif len(mode_matches) > 1:
+            errors.append("baseline.md: commit_mode must appear exactly once")
+        else:
+            commit_mode = mode_matches[0]
             if commit_mode not in {"auto", "none"}:
                 errors.append("baseline.md: commit_mode must be auto or none")
+        run_modes_matches = re.findall(r"^run_modes:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if not run_modes_matches:
+            errors.append("baseline.md: missing run_modes")
+        elif len(run_modes_matches) > 1:
+            errors.append("baseline.md: run_modes must appear exactly once")
+        else:
+            run_modes = run_modes_matches[0]
+            if run_modes not in {"autonomous", "pause-between-phases", "step-by-step"}:
+                errors.append(
+                    "baseline.md: run_modes must be autonomous, pause-between-phases, or step-by-step"
+                )
         match = re.search(r"^commit:\s*([0-9a-f]{40}(?:[0-9a-f]{24})?)\s*$", baseline, re.MULTILINE)
         if not match:
             errors.append("baseline.md: missing full 'commit: <SHA>'")
@@ -556,6 +572,38 @@ def main() -> int:
                 expected = expected_seal(workspace, control_path, control)
                 if seal_path.read_text(encoding="utf-8") != expected:
                     errors.append(f"{label}: seal mismatch; packet/control changed after review")
+
+    if commit_mode == "none" and git_root is not None:
+        accepted_manifest = workspace / "attempts/accepted-state.json"
+        if not accepted_manifest.is_file():
+            errors.append("commit_mode none: missing attempts/accepted-state.json")
+        else:
+            try:
+                manifest = json.loads(accepted_manifest.read_text(encoding="utf-8"))
+                if not isinstance(manifest, dict):
+                    raise TypeError("accepted manifest must be a JSON object")
+                manifest_steps = {
+                    Path(item["path"]).stem
+                    for item in manifest["controls"]
+                    if isinstance(item, dict) and isinstance(item.get("path"), str)
+                }
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, KeyError):
+                manifest_steps = set()
+            accepted_steps = set(re.findall(r"\d+\.\d+(?:-r\d+)?", state.get("ACCEPTED_THIS_PHASE", "")))
+            missing_steps = accepted_steps - manifest_steps
+            if missing_steps:
+                errors.append(
+                    f"accepted-state.json: missing current accepted steps {sorted(missing_steps)}"
+                )
+            result = subprocess.run(
+                [sys.executable, str(WORKTREE_GUARD), "verify-accepted", str(git_root), str(accepted_manifest)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode:
+                detail = (result.stdout or result.stderr).strip().replace("\n", "; ")
+                errors.append(f"accepted-state.json: {detail}")
 
     phase_seal_path: Path | None = None
     if phase_path is not None and phase_control is not None:
