@@ -56,7 +56,12 @@ Each lowering step must preserve meaning. The files are the memory and the evide
 
 1. **Thin harness.** The main thread coordinates; it never produces feature plans or product code.
 2. **Fresh thinking.** Spawn a new clean planner for Phase 1 and every later phase. Spawn a new
-   clean executor for every leaf. Do not reuse an agent to save tokens.
+   clean executor for every leaf. Do not reuse an agent to save tokens. Spawning is an actual host
+   tool call, not a state-file update: record the role as `<role> pending`, call the real spawn
+   tool, persist its returned task/thread identifier to `attempts/<role>-<scope>-a<N>.agent`, and
+   replace `pending` in `phase-state.md` with the concrete identifier only after the
+   undeclared-write check passes; a synchronous host that returns no identifier records `<role>
+   synchronous` and never fabricates one. Never wait with no spawned target.
 3. **No inherited chat.** A clean agent receives a role prompt plus artifact paths or a sealed
    packet only. Conversation inheritance must be disabled; if true isolation is unavailable, set
    `BLOCKED` rather than asking a prompt to ignore chat it can still see.
@@ -73,10 +78,11 @@ Each lowering step must preserve meaning. The files are the memory and the evide
 9. **Explain without blocking.** Phase briefings and reports are mandatory. Wait only in the
    terminal gate `AWAITING_HUMAN_DECISION`.
 10. **No phase-boundary pause.** Continue autonomously by default. `/clear` handoffs are a manual
-    recovery option, never the normal control flow. Only when the user's request explicitly asks
-    for supervision, record `run_modes` in `baseline.md` at initialization and honor the requested
-    checkpoints through the `AWAITING_HUMAN_DECISION` gate; never infer a pause the user did not
-    ask for.
+    recovery option, never the normal control flow.
+    Record `run_modes` in `baseline.md` at initialization in every run; the default value is `autonomous`. Record a supervised value
+    (`pause-between-phases` or `step-by-step`) only when the user's request explicitly asks for
+    supervision, and then honor the requested checkpoints through the `AWAITING_HUMAN_DECISION`
+    gate; never infer a pause the user did not ask for.
 11. **Clean artifacts.** Every role-written Markdown/JSON artifact must pass format validation and
     contain no trailing whitespace. Run the workspace validator after every artifact-writing role.
 
@@ -87,8 +93,12 @@ it defines the pre-workspace Git snapshot, then creation of `.oplan/<run-name>/`
 schema, writer, and checkpoint.
 
 Copy the user's request verbatim to `request.md`; this is input capture, not planning. Run
-`python3 <skill-dir>/scripts/validate_run.py <workspace>` after initialization, on resume, and
+`<python> <skill-dir>/scripts/validate_run.py <workspace>` after initialization, on resume, and
 with `--phase N` after a phase planner writes packets.
+
+Resolve `<python>` once for the current host: use `python3` when that command exists, otherwise use
+`python`. Write the resolved executable — never the placeholder — into frozen validation, controls,
+and acceptance commands.
 
 Initialization includes a verified full Git commit baseline, protected pre-existing dirty paths,
 and concrete role bindings with an ordered worker ladder. Never use symbolic `HEAD`, commit
@@ -245,11 +255,12 @@ For each completed leaf:
 
 1. Verify the active phase-control and packet/control seals. Read only the small controls named by
    `PHASE_CONTROL`/`NEXT_ACTION`; do not read the packet or plan in the harness.
-2. Before dispatch, persist a worktree snapshot that excludes only the expected capped-report
-   path. Immediately after return, atomically write that report, then mechanically reject any
+2. Before dispatch, persist a worktree snapshot that excludes exactly two paths: the expected capped-report path and the agent-identifier path `attempts/<role>-<scope>-a<N>.agent` that hard rule 2 requires.
+   Immediately after return, atomically write that report, then mechanically reject any
    other path change outside the control write set before interpreting the verdict.
-3. Run its frozen validation from a fresh shell at the Git root. Write full output to `logs/<step>.log`; expose
-   only exit status and at most 20 tail lines to the harness.
+3. Run its frozen validation from a fresh shell at the Git root. Treat the stored validation as an opaque top-level command: do not wrap it in another command string in any language, interpolate it through `Invoke-Expression` or any equivalent evaluator, or otherwise let the coordinator shell expand its variables.
+   Shell quoting used only to transport the opaque command is not a packet change. Write full
+   output to `logs/<step>.log`; expose only exit status and at most 20 tail lines to the harness.
 4. Spawn a fresh spec auditor using [auditor.md](templates/auditor.md). Give artifact paths and
    the last accepted commit; let the auditor create and inspect the scoped diff without routing it
    through the harness.
@@ -261,9 +272,11 @@ For each completed leaf:
    behavior, user-flow state transitions, and creative or natural-language content whose quality
    no frozen mechanical validation can prove (such leaves also require a strong worker tier per
    [model-policy.md](references/model-policy.md)).
-6. Accept only after required gates pass. Stage and path-restricted commit exactly the control record's write set,
-   append the journal, update `LAST_ACCEPTED` to the full new commit SHA, update
-   `phase-state.md`, and rewrite `STATUS.md`.
+6. Accept only after required gates pass. Under `commit_mode: auto`, stage and path-restricted
+   commit exactly the control record's write set and update `LAST_ACCEPTED` to the full new commit
+   SHA. Under `commit_mode: none`, update and verify the cumulative `attempts/accepted-state.json`
+   instead, and do not stage or commit. In both modes, append the journal, update `phase-state.md`,
+   and rewrite `STATUS.md`.
 
 At every phase gate, run the phase acceptance criteria and a fresh system review, even if every
 leaf was low risk. The system lens looks for integration errors, duplicated concepts, decision-ID
@@ -281,7 +294,10 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
 - Revert only the control record's exhaustive write set and never a protected baseline path.
   Reverts use the guard's byte-level `restore`, so they preserve uncommitted pre-attempt content
   instead of resetting to a commit.
-- A retry re-verifies the original seal and uses a fresh executor. The ordered tier ladder comes
+- A retry re-verifies the original seal and uses a fresh executor. This applies to executor,
+  validation, audit, and review failures only; a failing `ACCEPT_LEAF` is never retried with a
+  fresh executor — it is a blocking record failure routed by the transition table's `ACCEPT_LEAF`
+  row to `BLOCKED` (D-023). The ordered tier ladder comes
   from `model-bindings.md`; “next stronger” is never inferred during the run.
 - The control record's `wall_time_minutes` is a parent-enforced cancellation boundary, never a
   worker promise. Cancel an attempt still running at the boundary, revert it, and count it
@@ -359,7 +375,9 @@ Track per leaf and phase:
 ## 14. Resume
 
 On resume, read only `phase-state.md` first. Verify the full `LAST_ACCEPTED` commit and the relevant
-packet/control seals, then perform `NEXT_ACTION`. Read
+packet/control seals, then perform `NEXT_ACTION`. Under `commit_mode: none`, the harness also runs
+the accepted-state verifier before any dispatch; a missing or mismatched cumulative manifest is a
+blocking record failure. Read
 [state-and-records.md](references/state-and-records.md) only if the control record is invalid or
 the run needs reconstruction.
 

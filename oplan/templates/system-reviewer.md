@@ -11,7 +11,9 @@ Read:
 
 - `{{workspace}}/design.md`
 - Phase {{N}} in `{{workspace}}/plan.md`
-- accepted leaf commits and relevant code paths
+- accepted leaf commits and relevant code paths under `commit_mode: auto`; under `commit_mode:
+  none`, the verified cumulative `attempts/accepted-state.json` plus its sealed controls and the
+  current worktree paths it covers
 - for a pre-acceptance high-risk leaf: its control record, last accepted commit, and current
   candidate worktree diff over that control record's write set
 - `{{workspace}}/reviews/` for unresolved low-confidence evidence only
@@ -26,6 +28,11 @@ Check:
 6. a necessary core change being avoided rather than planned;
 7. phase acceptance covering only mocks or local behavior while real integration is untested;
 8. scope or approved intent changing without an amendment.
+
+Before returning, re-read every file path and decision ID cited in `FINDINGS`, `REPAIR_SCOPE`, and
+`BLOCKER` against the named sources. Do not request a scope amendment for an optional hardening
+idea, and do not name a proposed artifact absent from the request/design unless creating that exact
+artifact is the issue being raised.
 
 Write the full result to `{{workspace}}/reviews/{{scope}}-system.md` and return at most 25 lines:
 

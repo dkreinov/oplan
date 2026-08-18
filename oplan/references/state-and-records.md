@@ -49,7 +49,10 @@ Before planning, run a Git preflight:
    `pause-between-phases` pauses at each non-final `CLOSE_PHASE`, `step-by-step` pauses after each
    `ACCEPT_LEAF`. Also record `commit_mode:` in `baseline.md`. The default is `auto` — accepted
    leaves are committed. Record `none` only when the user's request explicitly forbids commits;
-   never infer it.
+   never infer it. When `commit_mode: none`, initialize the cumulative accepted-state manifest
+   before the first dispatch by running this command:
+
+   `<python> <skill-dir>/scripts/worktree_guard.py init-accepted <git-root> <workspace>/attempts/accepted-state.json`
 6. Run `validate_run.py` before spawning the first planner.
 
 ## 2. Control state
@@ -99,6 +102,30 @@ NEXT_ACTION: SPAWN_SYSTEM_REVIEWER scope=phase-2 source=reviews/phase-2-acceptan
 NEXT_ACTION: ASK_HUMAN blocker=blockers/B-003.md
 ```
 
+Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/scripts/validate_run.py`):
+
+| Verb | Required arguments |
+|---|---|
+| `INITIALIZE_BASELINE` | none |
+| `SPAWN_PHASE_PLANNER` | `mode`, `phase`, `source` |
+| `SPAWN_RESEARCH_AGENT` | `attempt`, `blocker` |
+| `SPAWN_PLAN_REVIEWER` | `phase`, `source` |
+| `SEAL_PHASE` | `phase`, `source` |
+| `REPORT_PHASE_PLAN` | `phase`, `source` |
+| `SPAWN_EXECUTOR` | `control` |
+| `REVERT_CANDIDATE` | `control` |
+| `RUN_VALIDATION` | `attempt`, `control` |
+| `SPAWN_SPEC_AUDITOR` | `control` |
+| `COMPLETE_EVIDENCE` | `control`, `review` |
+| `SPAWN_SYSTEM_REVIEWER` | `scope`, `source` |
+| `ACCEPT_LEAF` | `control` |
+| `RUN_PHASE_ACCEPTANCE` | `phase`, `source` |
+| `RUN_OVERALL_ACCEPTANCE` | `phase`, `source` |
+| `SPAWN_PHASE_CURATOR` | `phase`, `source` |
+| `CLOSE_PHASE` | `phase` |
+| `ASK_HUMAN` | `blocker` |
+| `none` | none |
+
 Write the next state before printing a human report. The control record, never chat history, tells
 a replacement harness what to do.
 
@@ -142,6 +169,8 @@ For every packet, the planner also writes `control/<step-id>.json`:
 }
 ```
 
+`validation` stores the resolved `<python>` executable, never the placeholder (D-006).
+
 `wall_time_minutes` is a parent-enforced cancellation boundary, never a promise the worker must
 estimate or meet; the packet tells the worker not to rush or self-abort. When an executor is still
 running at the boundary, the harness cancels it and treats the attempt exactly like an executor
@@ -149,7 +178,10 @@ running at the boundary, the harness cancels it and treats the attempt exactly l
 
 `packet` is workspace-relative; every `write_set` path is Git-root-relative. This is the only leaf artifact the harness reads. It contains exactly what the harness needs to
 validate, scope a revert/commit, route risk, and update decision metrics. It must contain no phase
-acceptance, rationale, code, or feature-planning prose.
+acceptance, rationale, code, or feature-planning prose. A write-set path, each existing ancestor,
+and every descendant of a declared directory must be a real path and not a symlink or junction;
+guard capture rejects a redirect before dispatch and guard check rejects one introduced by an
+executor.
 
 The planner also writes one active versioned phase control and the harness records its path in
 `PHASE_CONTROL`:
@@ -178,8 +210,11 @@ After the active plan review artifact says `VERDICT: ship`, set
 `NEXT_ACTION: SEAL_PHASE phase=N source=<PHASE_CONTROL>` and run:
 
 ```text
-python3 <skill-dir>/scripts/validate_run.py <workspace> --phase N --seal
+<python> <skill-dir>/scripts/validate_run.py <workspace> --phase N --seal
 ```
+
+`<python>` is resolved as defined in `SKILL.md`, and the actual executable name is persisted in
+controls and logs.
 
 This writes immutable `seals/<step-id>.sha256` files covering both packet and control record, plus
 a seal for the active phase control and its review.
@@ -189,15 +224,27 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 ## 5. Total verdict transitions
 
 Follow this table mechanically. “Revert” means run
-`worktree_guard.py restore <git-root> <snapshot> <control>`, which restores every write-set path to
-its exact pre-attempt bytes — preserving uncommitted content that predated the attempt — while
-never touching a path outside the write set or a protected baseline path.
-Before every fresh role starts, set state/`ACTIVE_AGENT`. Persist its capped return atomically to
-`attempts/<role>-<scope>-a<N>.report` before interpreting it or advancing state. For an executor,
-the guard snapshot explicitly excludes that one expected report path so it can be persisted before
-the comparison without masking any other workspace write. Attempt numbers,
-mismatch counts, and malformed-report counts are derived from these immutable versioned artifacts;
-never keep them only in chat. `RETRY` mirrors the current action's attempt count.
+`<python> <skill-dir>/scripts/worktree_guard.py restore <git-root> <snapshot> <control>`, which
+restores every write-set path to its exact pre-attempt bytes — preserving uncommitted content that
+predated the attempt — while never touching a path outside the write set or a protected baseline
+path.
+
+Before every fresh role starts, set `ACTIVE_AGENT: <role> pending`; then make the actual host
+spawn-tool call; persist the host-returned task/thread identifier to
+`attempts/<role>-<scope>-a<N>.agent`; for an executor dispatch that identifier path is passed to
+`worktree_guard.py capture` as an additional excluded path alongside the expected capped-report
+path; `phase-state.md` keeps `<role> pending` for the whole attempt window and receives the concrete
+identifier only after `worktree_guard.py check` passes; a synchronous host that returns no
+identifier records `<role> synchronous` and must never fabricate one; a state write never counts as
+a spawn and an empty receiver set is never a valid wait; a failed spawn is a host-action failure
+that is persisted and handled inside the same bounded retry/escalation policy, and the role is never
+described as running. This paragraph states who writes what, not when `capture` runs; section 6
+owns the ordering, and nothing here may contradict it.
+
+Persist each role's capped return atomically to `attempts/<role>-<scope>-a<N>.report` before
+interpreting it or advancing state. Attempt numbers, mismatch counts, and malformed-report counts
+are derived from these immutable versioned artifacts; never keep them only in chat. `RETRY` mirrors
+the current action's attempt count.
 
 | Input | Candidate treatment | Next state and action |
 |---|---|---|
@@ -228,6 +275,7 @@ never keep them only in chat. `RETRY` mirrors the current action's attempt count
 | spec audit first `mismatch` | revert | fresh executor with original sealed packet; increment mismatch count |
 | spec audit second `mismatch` | revert | `BLOCKED` |
 | high-risk leaf system `pass` | retain | `REVIEWING_RESULT`; `ACCEPT_LEAF control=<path>` |
+| `ACCEPT_LEAF` record or commit failure | retain the candidate; never revert and never re-invoke the executor | persist the record evidence, then `BLOCKED`; `NEXT_ACTION: none` |
 | high-risk leaf system `repair` | revert | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | any review `human-decision` | revert unaccepted candidate | persist blocker, then human gate |
 | phase acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<acceptance log>` |
@@ -248,14 +296,69 @@ never keep them only in chat. `RETRY` mirrors the current action's attempt count
 | overall acceptance pass | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N`, print final phase report, then `COMPLETE` |
 | overall acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<overall log>` |
 
-`ACCEPT_LEAF` verifies the seal, stages only `write_set`, and commits with path-restricted Git
-semantics (`git commit --only -- <write_set>`) so unrelated pre-staged changes cannot enter. Verify
-the commit diff contains no path outside the intended write set, record its full SHA as `LAST_ACCEPTED`,
-append the journal, and advance to the next leaf or phase gate. Under `commit_mode: none`, do not
-commit — instead record the accepted write-set per-path SHA-256 list in
-`attempts/<step>-accepted.json`, keep `LAST_ACCEPTED` at the baseline commit SHA, and note the
-accepted hashes in the journal. Under `commit_mode: none`, a write set may overlap protected
-baseline paths because attempt snapshots, not commits, preserve pre-existing bytes. At phase
+Retry-only context such as a failing-log path belongs in the fresh agent prompt, not in `NEXT_ACTION`.
+Every persisted action must use exactly the arguments listed for that verb in the
+required action arguments table in section 2. Under `commit_mode: none` the `ACCEPT_LEAF` record or
+commit failure row covers a failing `record-accepted` or `verify-accepted`; under `commit_mode:
+auto` it covers a failing stage, commit, or commit-diff verification.
+
+`ACCEPT_LEAF` verifies the seal. Under `commit_mode: auto`, it stages only `write_set` and commits
+with path-restricted Git semantics (`git commit --only -- <write_set>`) so unrelated pre-staged
+changes cannot enter, verifies the commit diff contains no path outside the intended write set, and
+records its full SHA as `LAST_ACCEPTED`. Under `commit_mode: none`, it does not stage or commit;
+instead it runs
+
+`<python> <skill-dir>/scripts/worktree_guard.py record-accepted <git-root> <control> <workspace>/attempts/accepted-state.json`
+
+and then the matching
+
+`<python> <skill-dir>/scripts/worktree_guard.py verify-accepted <git-root> <workspace>/attempts/accepted-state.json`
+
+before advancing, keeps `LAST_ACCEPTED` at the baseline commit SHA, and notes the manifest path and
+accepted step in the journal. In both modes it appends the journal and advances to the next leaf or
+phase gate.
+
+This one cumulative manifest records ordered sealed controls plus current recursive worktree and
+Git-index hashes for the union of their write sets, so a later accepted leaf may re-baseline an
+earlier leaf's paths when it declares them: (D-002 as amended by D-019) `record-accepted`
+re-baselines only the recorded paths at or below a path in the newly accepted control's write set,
+and fails without writing when any other recorded path has changed. Because a recorded directory is
+one whole-tree state, a leaf that writes inside an already-accepted directory must declare that
+directory in its own `write_set`, and declaring it means accepting responsibility for everything
+under it. If either command fails, that is a blocking record failure and not an acceptance
+(D-020): re-running `record-accepted` for a control already in the manifest re-baselines nothing —
+it verifies every recorded path, including that control's own, and fails without writing when any
+has changed — so a retried `ACCEPT_LEAF` re-surfaces the failure instead of erasing it. A failing
+`record-accepted` or `verify-accepted` here never reverts the candidate and never re-invokes the
+executor: the harness persists the record evidence and enters `BLOCKED` per the transition-table
+row for it, because recording a control is a one-shot gate with no unrecord, rollback, or force path
+and the manifest is never edited by hand (D-023). Recovery is human-initiated: a leaf that must be
+re-executed after its control was recorded is replanned under a new versioned step ID whose new
+control file refreshes every path it declares, so that repair control's `write_set` must cover
+every path the failed control declared.
+
+Under `commit_mode: none`, a write set may overlap protected baseline paths because attempt
+snapshots, not commits, preserve pre-existing bytes.
+
+The guard owns the manifest, writes this exact schema, and it must never be edited by hand:
+
+```json
+{
+  "schema": "oplan-accepted-state/v1",
+  "repo": "<absolute Git worktree path>",
+  "controls": [
+    {"path": ".oplan/<run>/control/1.1.json", "sha256": "<64 lowercase hex>"}
+  ],
+  "write_set_states": {
+    "path/in/write-set": {
+      "worktree": "<recursive byte, type, and mode state>",
+      "index": "<SHA-256 of git ls-files --stage output>"
+    }
+  }
+}
+```
+
+At phase
 close, write the report and, if another phase exists, atomically set `STATE: PLANNING` and
 `PHASE_CONTROL: none` and `NEXT_ACTION: SPAWN_PHASE_PLANNER phase=N+1 mode=new source=none` before printing. The final phase
 becomes `COMPLETE` only after curation and overall acceptance.
@@ -275,21 +378,49 @@ phase close append acceptance, curation, interventions, cost by role, and harnes
 `unavailable`. `STATUS.md` is current state only; `briefing.md` is append-only history.
 
 On resume, read `phase-state.md` first, verify `LAST_ACCEPTED` and all relevant seals, explain any
-in-flight candidate from its control record, then perform `NEXT_ACTION`. If state is inconsistent,
-set `BLOCKED` with the validation evidence. An explicitly initiated recovery may then use a fresh
-reconstruction reviewer over commits plus record paths. Never ask the human to repeat a decision
-already present in the records.
+in-flight candidate from its control record, then perform `NEXT_ACTION`. Under `commit_mode: none`,
+also run `<python> <skill-dir>/scripts/worktree_guard.py verify-accepted <git-root> <workspace>/attempts/accepted-state.json`
+on the cumulative manifest before any dispatch. The run validator also requires that manifest from
+initialization onward and checks that it includes every step in `ACCEPTED_THIS_PHASE`. If state is
+inconsistent, set `BLOCKED` with the validation evidence. An explicitly initiated recovery may then
+use a fresh reconstruction reviewer over commits plus record paths. Never ask the human to repeat a
+decision already present in the records.
 
 For an executor question, the harness first runs the undeclared-write guard/revert, then copies
 the report path, exact `QUESTION`, affected step, and repair resume action into
 `blockers/Q-<step>-a<N>.md`. Repository-fact blocker artifacts use the same fields plus inspected
 sources and are written by the planner/reviewer that reports them.
 
-Immediately before dispatching an executor, run
-`worktree_guard.py capture <git-root> <attempt-snapshot> <control> <expected-report-relative-path>`
-after the state update. Immediately after its capped return, atomically persist only that excluded report,
-then run `worktree_guard.py check <git-root> <snapshot> <control> <workspace>` before interpreting
-the verdict or writing anything else. Any changed path outside the
+Every harness record write for the attempt — the `phase-state.md` update, any `journal.md` append,
+and every other workspace write — completes before `worktree_guard.py capture`.
+All harness record writes for the attempt complete before `capture`; nothing is written between `capture` and the dispatch.
+Immediately before dispatching an executor, run:
+
+`<python> <skill-dir>/scripts/worktree_guard.py capture <git-root> <attempt-snapshot> <control> <expected-report-relative-path> <agent-id-relative-path>`
+
+then dispatch as the next harness action, with nothing written in between. After the capped return,
+atomically persist only that excluded report, then run
+`<python> <skill-dir>/scripts/worktree_guard.py check <git-root> <snapshot> <control> <workspace>`
+before interpreting the verdict or writing anything else. A gate re-run performed after post-gate
+writes is uninterpretable and is not evidence. Any changed path outside the
 control write set, including `.oplan` or a pre-existing dirty path, is a scope violation: preserve
 the guard evidence, revert the declared candidate, and set `BLOCKED`. This guard precedes
 validation, audit, retry, and commit; a scoped diff alone is not isolation.
+
+`worktree_guard.py capture` always runs from the worktree copy of the guard. When the guard script
+itself is inside the leaf's `write_set`, the post-attempt `check` and any `restore` for that attempt
+run from the pre-attempt sidecar copy at `<attempt-snapshot>.files/<guard-path>` —
+the same executable that wrote the snapshot — so an executor never judges its own rewrite of the guard. A
+candidate guard's own compatibility paths therefore get no gate-level exercise, so a leaf that
+changes the guard's state grammar or its collection-membership predicate must prove both inside its
+own frozen validation.
+
+## 7. Guard threat model and limits
+
+The guard defends against accidental scope violations, not against an executor that deliberately forges harness records. The pre-attempt snapshot, its sidecar copies, and the cumulative
+accepted-state manifest all live inside the worktree and are therefore forgeable by a deliberately
+malicious executor; closing this gap is out of scope for this run.
+
+The manifest records a declared directory as a single whole-tree state, so it detects any change
+under that directory but cannot attribute it to one file, and accepting a control that declares the
+directory re-baselines everything under it in one step.

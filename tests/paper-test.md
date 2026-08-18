@@ -63,7 +63,8 @@ ambiguity.
 - [ ] A finding that is really a **design-level** contradiction is escalated to the human, not patched silently — `DESIGN.md` is frozen
 - [ ] A successful phase cannot produce a final response while a later phase exists
 - [ ] Phase 1 and later phases use the same clean-planner path
-- [ ] `python3 oplan/scripts/validate_skill_contracts.py` passes
+- [ ] `<python> oplan/scripts/validate_skill_contracts.py` passes, resolving `<python>` as defined
+      in `oplan/SKILL.md`
 
 ## Runs
 

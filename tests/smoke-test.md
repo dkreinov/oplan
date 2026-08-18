@@ -52,7 +52,8 @@ Invoke `oplan` without special “continuous mode” wording:
 - [ ] `STATUS.md` contained only current state; `journal.md` and `briefing.md` were append-only.
 - [ ] Every capped role return and executor question was persisted as a versioned artifact before state advanced.
 - [ ] `input.txt`, `upper.txt`, and `count.txt` contain the exact expected values.
-- [ ] `python3 oplan/scripts/validate_skill_contracts.py` passes in the skill source.
+- [ ] `<python> oplan/scripts/validate_skill_contracts.py` passes in the skill source, resolving
+      `<python>` as defined in `oplan/SKILL.md`.
 - [ ] `validate_run.py <workspace> --phase <N> --seal` passes after plan-review `ship`.
 - [ ] `validate_run.py <workspace> --phase <N> --require-sealed` passes before every dispatch,
       retry, audit, validation, and commit.
