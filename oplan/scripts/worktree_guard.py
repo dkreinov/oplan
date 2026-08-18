@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -17,6 +18,7 @@ from pathlib import Path
 
 SNAPSHOT_SCHEMA = "oplan-worktree-snapshot/v2"
 LEGACY_SNAPSHOT_SCHEMA = "oplan-worktree-snapshot/v1"
+ACCEPTED_SCHEMA = "oplan-accepted-state/v1"
 
 
 def git(repo: Path, *args: str) -> bytes:
@@ -409,6 +411,201 @@ def check(repo: Path, snapshot: Path, control_path: Path, workspace: Path) -> in
     return 0
 
 
+def accepted_worktree_state(repo: Path, relative: str) -> str:
+    state = worktree_state(repo, relative)
+    if not state.startswith("directory:"):
+        return state
+    root = repo / relative
+    reject_linklike_descendants(root, relative)
+    digest = hashlib.sha256()
+    digest.update(state.encode("ascii"))
+    digest.update(b"\0")
+    descendants = sorted(root.rglob("*"), key=lambda p: p.relative_to(root).as_posix())
+    for descendant in descendants:
+        name = descendant.relative_to(root).as_posix()
+        digest.update(name.encode("utf-8", errors="surrogateescape"))
+        digest.update(b"\0")
+        descendant_relative = descendant.relative_to(repo).as_posix()
+        digest.update(worktree_state(repo, descendant_relative).encode("ascii"))
+        digest.update(b"\0")
+    return "tree:" + state.split(":", 1)[1] + ":" + digest.hexdigest()
+
+
+def accepted_path_state(repo: Path, relative: str) -> dict[str, str]:
+    worktree = accepted_worktree_state(repo, relative)
+    index = git(repo, "ls-files", "--stage", "-z", "--", relative)
+    return {"worktree": worktree, "index": hashlib.sha256(index).hexdigest()}
+
+
+def accepted_root(repo: Path, manifest_path: Path) -> Path:
+    root = Path(git(repo, "rev-parse", "--show-toplevel").decode().strip()).resolve()
+    try:
+        manifest_path.resolve().relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("accepted manifest must be inside the Git worktree") from exc
+    return root
+
+
+def accepted_schema(manifest: dict, root: Path) -> None:
+    if manifest.get("schema") != ACCEPTED_SCHEMA:
+        raise RuntimeError(
+            "accepted manifest was written under a different state grammar; "
+            "re-initialize the manifest"
+        )
+    if manifest.get("repo") != str(root):
+        raise RuntimeError("accepted manifest belongs to another Git worktree")
+
+
+def accepted_controls(root: Path, manifest: dict) -> tuple[list[dict[str, str]], set[str]]:
+    controls = manifest["controls"]
+    if not isinstance(controls, list):
+        raise RuntimeError("accepted manifest controls must be a list")
+    seen: set[str] = set()
+    normalized: list[dict[str, str]] = []
+    write_set: set[str] = set()
+    for entry in controls:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
+            raise RuntimeError("accepted manifest has an invalid control entry")
+        path = entry["path"]
+        sha256 = entry["sha256"]
+        if not isinstance(path, str) or not safe_relative(path) or path in seen:
+            raise RuntimeError("accepted manifest has an invalid or duplicate control path")
+        if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256):
+            raise RuntimeError("accepted manifest has an invalid control hash")
+        target = safe_worktree_target(root, path)
+        if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != sha256:
+            raise RuntimeError(f"accepted manifest control hash mismatch: {path}")
+        seen.add(path)
+        normalized.append({"path": path, "sha256": sha256})
+        write_set |= set(read_write_set(target))
+    return normalized, write_set
+
+
+def init_accepted(repo: Path, manifest_path: Path) -> int:
+    root = accepted_root(repo, manifest_path)
+    if manifest_path.is_file():
+        return verify_accepted(root, manifest_path)
+    value = {
+        "schema": ACCEPTED_SCHEMA,
+        "repo": str(root),
+        "controls": [],
+        "write_set_states": {},
+    }
+    atomic_json(manifest_path, value)
+    print("oplan worktree guard: ACCEPTED STATE INITIALIZED")
+    return 0
+
+
+def record_accepted(repo: Path, control_path: Path, manifest_path: Path) -> int:
+    root = accepted_root(repo, manifest_path)
+    if not manifest_path.is_file():
+        raise RuntimeError("accepted-state manifest was not initialized")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "schema",
+        "repo",
+        "controls",
+        "write_set_states",
+    }:
+        raise RuntimeError("accepted manifest has an invalid schema")
+    accepted_schema(manifest, root)
+    recorded = manifest["write_set_states"]
+    controls, previous = accepted_controls(root, manifest)
+    if not isinstance(recorded, dict) or sorted(recorded) != sorted(previous):
+        raise RuntimeError("accepted manifest states do not match its controls")
+    try:
+        control_relative = control_path.resolve().relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RuntimeError("control is outside the Git worktree") from exc
+    new_write_set = read_write_set(control_path)
+    control_sha256 = hashlib.sha256(control_path.read_bytes()).hexdigest()
+    existing = next((entry for entry in controls if entry["path"] == control_relative), None)
+    if existing is not None and existing["sha256"] != control_sha256:
+        raise RuntimeError("accepted control path was reused with different bytes")
+    if existing is not None:
+        reused = True
+    else:
+        reused = False
+        controls = controls + [{"path": control_relative, "sha256": control_sha256}]
+    combined: set[str] = set()
+    for entry in controls:
+        combined |= set(read_write_set(root / entry["path"]))
+    for relative in combined:
+        safe_worktree_target(root, relative)
+    insensitive = case_insensitive_filesystem(root)
+    if reused:
+        refresh: set[str] = set()
+    else:
+        refresh = {p for p in combined if any(within(p, n, insensitive) for n in new_write_set)}
+    drifted = sorted(
+        p
+        for p in recorded
+        if p not in refresh and accepted_path_state(root, p) != recorded[p]
+    )
+    if drifted:
+        print("oplan worktree guard: FAIL")
+        for p in drifted:
+            if reused and any(within(p, n, insensitive) for n in new_write_set):
+                print(f"- accepted state drifted under an already-recorded control: {p}")
+            elif any(strictly_within(n, p, insensitive) for n in new_write_set):
+                print(
+                    "- accepted state drifted in an undeclared parent directory; "
+                    f"add it to the write set: {p}"
+                )
+            else:
+                print(f"- accepted state drifted outside the accepted write set: {p}")
+        return 1
+    states = {
+        p: accepted_path_state(root, p) if (p in refresh or p not in recorded) else recorded[p]
+        for p in sorted(combined)
+    }
+    value = {
+        "schema": manifest["schema"],
+        "repo": manifest["repo"],
+        "controls": controls,
+        "write_set_states": states,
+    }
+    atomic_json(manifest_path, value)
+    print(
+        f"oplan worktree guard: ACCEPTED ({len(controls)} controls, {len(combined)} current paths)"
+    )
+    return 0
+
+
+def verify_accepted(repo: Path, manifest_path: Path) -> int:
+    root = accepted_root(repo, manifest_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "schema",
+        "repo",
+        "controls",
+        "write_set_states",
+    }:
+        raise RuntimeError("accepted manifest has an invalid schema")
+    accepted_schema(manifest, root)
+    controls, write_set = accepted_controls(root, manifest)
+    for relative in write_set:
+        safe_worktree_target(root, relative)
+    states = manifest.get("write_set_states")
+    if not isinstance(states, dict) or sorted(states) != sorted(write_set):
+        raise RuntimeError("accepted manifest states do not match its controls")
+    mismatches = sorted(
+        relative
+        for relative in write_set
+        if accepted_path_state(root, relative) != states[relative]
+    )
+    if mismatches:
+        print("oplan worktree guard: FAIL")
+        for relative in mismatches:
+            print(f"- accepted state mismatch: {relative}")
+        return 1
+    print(
+        "oplan worktree guard: ACCEPTED STATE VERIFIED "
+        f"({len(controls)} controls, {len(write_set)} paths)"
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -426,12 +623,28 @@ def main() -> int:
     restore_parser.add_argument("repo", type=Path)
     restore_parser.add_argument("snapshot", type=Path)
     restore_parser.add_argument("control", type=Path)
+    init_accepted_parser = subparsers.add_parser("init-accepted")
+    init_accepted_parser.add_argument("repo", type=Path)
+    init_accepted_parser.add_argument("manifest", type=Path)
+    record_accepted_parser = subparsers.add_parser("record-accepted")
+    record_accepted_parser.add_argument("repo", type=Path)
+    record_accepted_parser.add_argument("control", type=Path)
+    record_accepted_parser.add_argument("manifest", type=Path)
+    verify_accepted_parser = subparsers.add_parser("verify-accepted")
+    verify_accepted_parser.add_argument("repo", type=Path)
+    verify_accepted_parser.add_argument("manifest", type=Path)
     args = parser.parse_args()
     try:
         if args.command == "capture":
             return capture(args.repo.resolve(), args.snapshot, args.control.resolve(), args.excluded)
         if args.command == "restore":
             return restore(args.repo.resolve(), args.snapshot.resolve(), args.control.resolve())
+        if args.command == "init-accepted":
+            return init_accepted(args.repo.resolve(), args.manifest.resolve())
+        if args.command == "record-accepted":
+            return record_accepted(args.repo.resolve(), args.control.resolve(), args.manifest.resolve())
+        if args.command == "verify-accepted":
+            return verify_accepted(args.repo.resolve(), args.manifest.resolve())
         return check(args.repo.resolve(), args.snapshot.resolve(), args.control.resolve(), args.workspace.resolve())
     except (OSError, RuntimeError, json.JSONDecodeError) as exc:
         print(f"oplan worktree guard: ERROR — {exc}")

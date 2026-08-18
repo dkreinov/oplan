@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -56,6 +57,7 @@ class WorktreeGuardTests(unittest.TestCase):
             json.dumps({"write_set": ["allowed.txt"]}) + "\n", encoding="utf-8"
         )
         self.snapshot = self.workspace / "attempts/executor-1.1-a1-before.json"
+        self.accepted = self.workspace / "attempts/accepted-state.json"
 
     def tearDown(self) -> None:
         self.tempdir.cleanup()
@@ -71,6 +73,18 @@ class WorktreeGuardTests(unittest.TestCase):
     def capture(self) -> None:
         result = self.run_guard("capture", self.repo, self.snapshot, self.control)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def init_accepted(self) -> None:
+        result = self.run_guard("init-accepted", self.repo, self.accepted)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def record(self, control: Path | None = None) -> subprocess.CompletedProcess[str]:
+        return self.run_guard(
+            "record-accepted", self.repo, control if control is not None else self.control, self.accepted
+        )
+
+    def verify(self) -> subprocess.CompletedProcess[str]:
+        return self.run_guard("verify-accepted", self.repo, self.accepted)
 
     def test_only_declared_write_passes(self) -> None:
         self.capture()
@@ -329,6 +343,232 @@ class WorktreeGuardTests(unittest.TestCase):
         )
         self.assertEqual(check_result.returncode, 2)
         self.assertIn("snapshot excludes paths outside workspace attempts", check_result.stdout)
+
+    def test_record_and_verify_accepted_file(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("data\n", encoding="utf-8")
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(
+            "oplan worktree guard: ACCEPTED (1 controls, 1 current paths)", result.stdout
+        )
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+        self.assertIn(
+            "oplan worktree guard: ACCEPTED STATE VERIFIED (1 controls, 1 paths)",
+            verify_result.stdout,
+        )
+
+    def test_verify_accepted_detects_later_change(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("data\n", encoding="utf-8")
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.repo / "allowed.txt").write_text("changed\n", encoding="utf-8")
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: allowed.txt", verify_result.stdout)
+
+    def test_verify_accepted_hashes_directory_contents(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "a.txt").write_text("one\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (bundle / "a.txt").write_text("two\n", encoding="utf-8")
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: bundle", verify_result.stdout)
+
+    def test_verify_accepted_detects_index_change(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("data\n", encoding="utf-8")
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "--", "allowed.txt"], check=True
+        )
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: allowed.txt", verify_result.stdout)
+
+    @unittest.skipIf(os.name == "nt", "Windows does not preserve Unix executable bits")
+    def test_verify_accepted_detects_mode_change(self) -> None:
+        target = self.repo / "allowed.txt"
+        target.write_text("data\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        original_mode = target.stat().st_mode & 0o7777
+        os.chmod(target, original_mode ^ 0o100)
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: allowed.txt", verify_result.stdout)
+
+    @unittest.skipIf(os.name == "nt", "Windows does not preserve Unix executable bits")
+    def test_verify_accepted_detects_directory_root_mode_change(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "a.txt").write_text("one\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        original_mode = bundle.stat().st_mode & 0o7777
+        os.chmod(bundle, original_mode ^ 0o100)
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: bundle", verify_result.stdout)
+
+    @unittest.skipIf(os.name != "nt", "read-only attribute mode drift is Windows-observable")
+    def test_verify_accepted_detects_read_only_mode_change_on_windows(self) -> None:
+        target = self.repo / "allowed.txt"
+        target.write_text("data\n", encoding="utf-8")
+        self.init_accepted()
+        record_result = self.record()
+        self.assertEqual(record_result.returncode, 0, record_result.stdout + record_result.stderr)
+        os.chmod(target, stat.S_IREAD)
+        result = self.verify()
+        os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("accepted state mismatch: allowed.txt", result.stdout)
+
+    def test_accepted_directory_state_uses_the_tree_prefix(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "a.txt").write_text("one\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        data = json.loads(self.accepted.read_text(encoding="utf-8"))
+        worktree_state = data["write_set_states"]["bundle"]["worktree"]
+        self.assertTrue(worktree_state.startswith("tree:"))
+        self.assertFalse(worktree_state.startswith("directory:"))
+
+    def test_record_accepted_rejects_a_foreign_manifest_schema(self) -> None:
+        self.init_accepted()
+        data = json.loads(self.accepted.read_text(encoding="utf-8"))
+        data["schema"] = "oplan-accepted-state/v0"
+        self.accepted.write_text(json.dumps(data), encoding="utf-8")
+        (self.repo / "allowed.txt").write_text("data\n", encoding="utf-8")
+        result = self.record()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("re-initialize the manifest", result.stdout)
+
+    def test_later_accepted_control_may_overlap_and_replaces_current_state(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("first\n", encoding="utf-8")
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        (self.repo / "allowed.txt").write_text("second\n", encoding="utf-8")
+        control_2 = self.workspace / "control/1.2.json"
+        control_2.write_text(json.dumps({"write_set": ["allowed.txt"]}) + "\n", encoding="utf-8")
+        result_2 = self.record(control_2)
+        self.assertEqual(result_2.returncode, 0, result_2.stdout + result_2.stderr)
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+
+    def test_record_accepted_rejects_drift_outside_new_write_set(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("first\n", encoding="utf-8")
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        control_2 = self.workspace / "control/1.2.json"
+        control_2.write_text(json.dumps({"write_set": ["other.txt"]}) + "\n", encoding="utf-8")
+        (self.repo / "other.txt").write_text("new\n", encoding="utf-8")
+        (self.repo / "allowed.txt").write_text("mutated\n", encoding="utf-8")
+        result_2 = self.record(control_2)
+        self.assertNotEqual(result_2.returncode, 0)
+        self.assertIn(
+            "accepted state drifted outside the accepted write set: allowed.txt", result_2.stdout
+        )
+
+    def test_record_accepted_leaves_manifest_unchanged_on_drift(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("first\n", encoding="utf-8")
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        control_2 = self.workspace / "control/1.2.json"
+        control_2.write_text(json.dumps({"write_set": ["other.txt"]}) + "\n", encoding="utf-8")
+        (self.repo / "other.txt").write_text("new\n", encoding="utf-8")
+        (self.repo / "allowed.txt").write_text("mutated\n", encoding="utf-8")
+        before_bytes = self.accepted.read_bytes()
+        result_2 = self.record(control_2)
+        self.assertNotEqual(result_2.returncode, 0)
+        self.assertEqual(self.accepted.read_bytes(), before_bytes)
+
+    def test_record_accepted_rejects_sibling_drift_in_a_recorded_directory(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "x.txt").write_text("x1\n", encoding="utf-8")
+        (bundle / "z.txt").write_text("z1\n", encoding="utf-8")
+        self.init_accepted()
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        (bundle / "z.txt").write_text("z2-behind-the-back\n", encoding="utf-8")
+        (bundle / "x.txt").write_text("x2-new-bytes\n", encoding="utf-8")
+        control_2 = self.workspace / "control/1.2.json"
+        control_2.write_text(
+            json.dumps({"write_set": ["bundle/x.txt"]}) + "\n", encoding="utf-8"
+        )
+        before_bytes = self.accepted.read_bytes()
+        result_2 = self.record(control_2)
+        self.assertNotEqual(result_2.returncode, 0)
+        self.assertIn(
+            "accepted state drifted in an undeclared parent directory; add it to the write set: bundle",
+            result_2.stdout,
+        )
+        self.assertEqual(self.accepted.read_bytes(), before_bytes)
+
+    def test_record_accepted_refreshes_a_directory_the_new_control_declares(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "x.txt").write_text("x1\n", encoding="utf-8")
+        (bundle / "z.txt").write_text("z1\n", encoding="utf-8")
+        self.init_accepted()
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        (bundle / "x.txt").write_text("x2-new-bytes\n", encoding="utf-8")
+        control_2 = self.workspace / "control/1.2.json"
+        control_2.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        result_2 = self.record(control_2)
+        self.assertEqual(result_2.returncode, 0, result_2.stdout + result_2.stderr)
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+
+    def test_re_recording_a_control_verifies_instead_of_re_baselining(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("first\n", encoding="utf-8")
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        (self.repo / "allowed.txt").write_text("mutated\n", encoding="utf-8")
+        before_bytes = self.accepted.read_bytes()
+        result_2 = self.record()
+        self.assertNotEqual(result_2.returncode, 0)
+        self.assertIn(
+            "accepted state drifted under an already-recorded control: allowed.txt",
+            result_2.stdout,
+        )
+        self.assertEqual(self.accepted.read_bytes(), before_bytes)
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+
+    def test_re_recording_a_clean_control_is_idempotent(self) -> None:
+        self.init_accepted()
+        (self.repo / "allowed.txt").write_text("first\n", encoding="utf-8")
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        before_bytes = self.accepted.read_bytes()
+        result_2 = self.record()
+        self.assertEqual(result_2.returncode, 0, result_2.stdout + result_2.stderr)
+        self.assertEqual(self.accepted.read_bytes(), before_bytes)
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
 
 
 if __name__ == "__main__":
