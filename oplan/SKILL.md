@@ -255,7 +255,11 @@ For each completed leaf:
 
 1. Verify the active phase-control and packet/control seals. Read only the small controls named by
    `PHASE_CONTROL`/`NEXT_ACTION`; do not read the packet or plan in the harness.
-2. Before dispatch, persist a worktree snapshot that excludes exactly two paths: the expected capped-report path and the agent-identifier path `attempts/<role>-<scope>-a<N>.agent` that hard rule 2 requires.
+2. Before dispatch, persist a worktree snapshot at `attempts/<step>-a<N>-snap.json` inside the run
+   workspace. The harness passes exactly two excluded paths: the expected capped-report path and
+   the agent-identifier path `attempts/<role>-<scope>-a<N>.agent` that hard rule 2 requires. The
+   guard adds the snapshot and its `.files` sidecar to that exclusion set itself, and rejects any
+   exclusion outside the workspace `attempts/` directory, which is why the snapshot lives there.
    Immediately after return, atomically write that report, then mechanically reject any
    other path change outside the control write set before interpreting the verdict.
 3. Run its frozen validation from a fresh shell at the Git root. Treat the stored validation as an opaque top-level command: do not wrap it in another command string in any language, interpolate it through `Invoke-Expression` or any equivalent evaluator, or otherwise let the coordinator shell expand its variables.

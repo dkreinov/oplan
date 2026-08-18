@@ -250,6 +250,7 @@ the current action's attempt count.
 |---|---|---|
 | planner `planned` | none | install returned `PHASE_CONTROL`; `REVIEWING_PLAN`; `SPAWN_PLAN_REVIEWER phase=N source=<PHASE_CONTROL>` |
 | workspace/control validation fail | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
+| `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
 | planner `record-gap` | none | persist invalid-record evidence, then `BLOCKED` |
 | planner `blocked/repo_fact` | none | require returned `BLOCKER_PATH`; `PLANNING`; `SPAWN_RESEARCH_AGENT blocker=<path> attempt=1` |
 | planner `blocked/product|authority` | none | persist blocker, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
@@ -301,6 +302,15 @@ Every persisted action must use exactly the arguments listed for that verb in th
 required action arguments table in section 2. Under `commit_mode: none` the `ACCEPT_LEAF` record or
 commit failure row covers a failing `record-accepted` or `verify-accepted`; under `commit_mode:
 auto` it covers a failing stage, commit, or commit-diff verification.
+The guard exit-2 row covers `capture`, `check`, and `restore` only. A failing `record-accepted` or
+`verify-accepted` is routed by the `ACCEPT_LEAF` record or commit failure row regardless of its
+exit code, so the candidate is retained and never reverted; a `verify-accepted` failure surfaced
+through `validate_run.py` is routed by the workspace/control validation fail row instead. When
+`restore` itself exits 2, reverting is the action that failed: do not retry it, leave the worktree
+exactly as the failed `restore` left it, and record the restoration as incomplete and the
+candidate's write-set paths as unrestored before entering `BLOCKED`. A `capture` that exits 2
+happens before the executor is dispatched, so reverting an unaccepted candidate is a defined no-op
+there.
 
 `ACCEPT_LEAF` verifies the seal. Under `commit_mode: auto`, it stages only `write_set` and commits
 with path-restricted Git semantics (`git commit --only -- <write_set>`) so unrelated pre-staged
@@ -406,6 +416,12 @@ writes is uninterpretable and is not evidence. Any changed path outside the
 control write set, including `.oplan` or a pre-existing dirty path, is a scope violation: preserve
 the guard evidence, revert the declared candidate, and set `BLOCKED`. This guard precedes
 validation, audit, retry, and commit; a scoped diff alone is not isolation.
+
+`<attempt-snapshot>` must be `<workspace>/attempts/<step-id>-a<N>-snap.json`. `capture` adds the
+snapshot and its `.files` sidecar to the snapshot's own exclusion list, and `check` requires every
+exclusion to lie strictly below `<workspace>/attempts`, so a snapshot written anywhere else is
+accepted by `capture`, dispatched against, and only then refused by `check` with exit code 2 —
+after the guarded window has closed.
 
 `worktree_guard.py capture` always runs from the worktree copy of the guard. When the guard script
 itself is inside the leaf's `write_set`, the post-attempt `check` and any `restore` for that attempt
