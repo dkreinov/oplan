@@ -506,6 +506,66 @@ class WorktreeGuardTests(unittest.TestCase):
         self.assertTrue(worktree_state.startswith("tree:"))
         self.assertFalse(worktree_state.startswith("directory:"))
 
+    def test_accepted_directory_digest_ignores_generated_tool_caches(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "mod.py").write_text("value = 1\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        pycache_file = bundle / "__pycache__/mod.cpython-312.pyc"
+        pycache_file.parent.mkdir(parents=True)
+        pycache_file.write_bytes(b"cached-bytecode")
+        pytest_cache_file = bundle / ".pytest_cache/v/cache/nodeids"
+        pytest_cache_file.parent.mkdir(parents=True)
+        pytest_cache_file.write_bytes(b"nodeids")
+        stray_pyc = bundle / "stale.pyc"
+        stray_pyc.write_bytes(b"stray-bytecode")
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+        self.assertIn("ACCEPTED STATE VERIFIED", verify_result.stdout)
+
+    def test_accepted_directory_digest_still_detects_a_real_change_beside_a_tool_cache(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "mod.py").write_text("value = 1\n", encoding="utf-8")
+        self.init_accepted()
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        pycache_file = bundle / "__pycache__/mod.cpython-312.pyc"
+        pycache_file.parent.mkdir(parents=True)
+        pycache_file.write_bytes(b"cached-bytecode")
+        pytest_cache_file = bundle / ".pytest_cache/v/cache/nodeids"
+        pytest_cache_file.parent.mkdir(parents=True)
+        pytest_cache_file.write_bytes(b"nodeids")
+        stray_pyc = bundle / "stale.pyc"
+        stray_pyc.write_bytes(b"stray-bytecode")
+        (bundle / "mod.py").write_text("value = 2\n", encoding="utf-8")
+        verify_result = self.verify()
+        self.assertNotEqual(verify_result.returncode, 0)
+        self.assertIn("accepted state mismatch: bundle", verify_result.stdout)
+
+    def test_record_accepted_ignores_tool_caches_under_an_already_recorded_directory(self) -> None:
+        self.control.write_text(json.dumps({"write_set": ["bundle"]}) + "\n", encoding="utf-8")
+        bundle = self.repo / "bundle"
+        bundle.mkdir()
+        (bundle / "mod.py").write_text("value = 1\n", encoding="utf-8")
+        self.init_accepted()
+        result_1 = self.record()
+        self.assertEqual(result_1.returncode, 0, result_1.stdout + result_1.stderr)
+        pycache_file = bundle / "__pycache__/mod.cpython-312.pyc"
+        pycache_file.parent.mkdir(parents=True)
+        pycache_file.write_bytes(b"cached-bytecode")
+        second_control = self.workspace / "control/1.2.json"
+        second_control.write_text(json.dumps({"write_set": ["other.txt"]}) + "\n", encoding="utf-8")
+        (self.repo / "other.txt").write_text("data\n", encoding="utf-8")
+        result_2 = self.record(second_control)
+        self.assertEqual(result_2.returncode, 0, result_2.stdout + result_2.stderr)
+        verify_result = self.verify()
+        self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+
     def test_record_accepted_rejects_a_foreign_manifest_schema(self) -> None:
         self.init_accepted()
         data = json.loads(self.accepted.read_text(encoding="utf-8"))
