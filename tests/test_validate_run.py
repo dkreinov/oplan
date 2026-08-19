@@ -34,6 +34,9 @@ class ValidateRunTests(unittest.TestCase):
             (root / filename).write_text("\n", encoding="utf-8")
         request = "Build output.\n"
         (root / "request.md").write_text(request, encoding="utf-8")
+        (root / "intake.md").write_text(
+            "status: complete\ngrill_tool: none\n", encoding="utf-8"
+        )
         request_hash = hashlib.sha256((root / "request.md").read_bytes()).hexdigest()
         (root / "baseline.md").write_text(
             f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n"
@@ -587,6 +590,51 @@ class ValidateRunTests(unittest.TestCase):
         result = self.run_validator(workspace)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("autonomy must appear exactly once", result.stdout)
+
+    def test_intake_is_required(self) -> None:
+        workspace = self.make_workspace()
+        (workspace / "intake.md").unlink()
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing workspace artifact: intake.md", result.stdout)
+
+    def test_intake_status_is_required(self) -> None:
+        workspace = self.make_workspace()
+        intake = workspace / "intake.md"
+        intake.write_text("grill_tool: none\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("intake.md: missing status", result.stdout)
+
+    def test_intake_status_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        intake = workspace / "intake.md"
+        intake.write_text(
+            intake.read_text(encoding="utf-8").replace("status: complete", "status: bogus"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("status must be complete or skipped-user-unreachable", result.stdout)
+
+    def test_intake_status_must_appear_once(self) -> None:
+        workspace = self.make_workspace()
+        intake = workspace / "intake.md"
+        intake.write_text(
+            intake.read_text(encoding="utf-8") + "status: complete\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("intake.md: status must appear exactly once", result.stdout)
+
+    def test_missing_required_file_reports_instead_of_crashing(self) -> None:
+        workspace = self.make_workspace()
+        (workspace / "baseline.md").unlink()
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing workspace artifact: baseline.md", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_commit_mode_none_requires_accepted_state_manifest(self) -> None:
         workspace = self.make_workspace()

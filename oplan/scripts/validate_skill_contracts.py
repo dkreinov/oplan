@@ -244,6 +244,7 @@ def main() -> int:
     plan_reviewer = (ROOT / "templates/plan-reviewer.md").read_text(encoding="utf-8")
     for phrase in (
         "no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.",
+        "a workspace with no `intake.md` is itself an `intent` finding",
     ):
         require(phrase in plan_reviewer, f"plan-reviewer.md missing phrase: {phrase}", errors)
 

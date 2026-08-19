@@ -115,8 +115,10 @@ Before planning, run a Git preflight:
 
    A `C-#` constraint ranks with an approved `D-###`. The phase planner reads `intake.md` as
    approved intent, no plan may contradict a constraint, and changing one is a design amendment
-   routed through the human gate. `validate_run.py` does not require `intake.md`, because its
-   `status:` field records its own absence (D-007).
+   routed through the human gate. `validate_run.py` requires `intake.md` to exist in every
+   workspace and to carry exactly one `status:` line whose only legal values are `complete` and
+   `skipped-user-unreachable`, so a skipped grill is recorded in the file and never by omitting
+   it (D-016).
 8. Run `validate_run.py` before spawning the first planner.
 
 ### 1.1 Depth profiles
@@ -137,6 +139,12 @@ actually executed (D-008). When a change in flight makes a new `baseline.md` key
 append is not left until each workspace happens to be touched again:
 the harness appends the missing line to every existing workspace baseline it will validate,
 before the first executor dispatch of the phase that introduces the key.
+The same rule covers a newly required workspace RECORD: when a change in flight makes a record such
+as `intake.md` required, the harness writes that record in every existing workspace it will
+validate, before the first executor dispatch of the phase that introduces the requirement (D-017).
+The section 5 acceptance self-heal rows are narrower on purpose — their input is a missing required
+`baseline.md` key alone — so a missing required record that reaches acceptance is routed by the
+unconditional acceptance-failure row to a repair planner.
 
 These invariants hold in ALL profiles: the Git baseline and protected paths, sealed packets and
 controls, the single product writer, guard capture/check/revert around every executor,
@@ -448,6 +456,10 @@ checkpoint — persist exactly one combined checkpoint blocker whose `Reasons:` 
 that fired, never two sequential waits; its recorded resume action is the action the run would
 perform at that event if no wait rule existed, that is the unconditional row for that event; and one
 human answer clears every listed reason.
+
+The `autonomy: interactive` run-plan wait is keyed on the `REPORT_PHASE_PLAN` event and not on the
+phase: every sealed phase-control revision passes through that event, so a phase whose plan is
+repaired and re-sealed waits again at each revision (D-019).
 
 A change is material when it changes approved intent, an `intake.md` constraint, run scope, a
 deliverable, a non-goal, the existence or purpose of any phase including a later sketch, or an

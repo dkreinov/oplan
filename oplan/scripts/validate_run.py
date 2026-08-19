@@ -201,7 +201,7 @@ def main() -> int:
     workspace = args.workspace.resolve()
     errors: list[str] = []
     required_files = [
-        "request.md", "baseline.md", "model-bindings.md", "design.md", "plan.md",
+        "request.md", "intake.md", "baseline.md", "model-bindings.md", "design.md", "plan.md",
         "phase-state.md", "journal.md", "STATUS.md", "briefing.md", "field-guide/index.md",
     ]
     required_dirs = ["control", "packets", "seals", "blockers", "research", "attempts", "logs", "reviews"]
@@ -221,6 +221,8 @@ def main() -> int:
         if root.is_dir():
             hygiene_files.extend(path for path in root.rglob("*") if path.is_file())
     for path in hygiene_files:
+        if not path.is_file():
+            continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
@@ -349,6 +351,19 @@ def main() -> int:
             errors.append("baseline.md: missing request_sha256")
         elif (workspace / "request.md").is_file() and request_match.group(1) != sha256(workspace / "request.md"):
             errors.append("request.md: immutable brief hash mismatch")
+
+    intake_path = workspace / "intake.md"
+    if intake_path.is_file():
+        intake = intake_path.read_text(encoding="utf-8")
+        status_matches = re.findall(r"^status:\s*(\S+)\s*$", intake, re.MULTILINE)
+        if not status_matches:
+            errors.append("intake.md: missing status")
+        elif len(status_matches) > 1:
+            errors.append("intake.md: status must appear exactly once")
+        else:
+            intake_status = status_matches[0]
+            if intake_status not in {"complete", "skipped-user-unreachable"}:
+                errors.append("intake.md: status must be complete or skipped-user-unreachable")
 
     bindings = workspace / "model-bindings.md"
     if bindings.is_file():
