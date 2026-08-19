@@ -47,7 +47,10 @@ what an earlier agent probably meant.
 7. Write its small machine control record to `{{workspace}}/control/<step-id>.json` using the
    schema in `references/state-and-records.md`. The packet and control record must agree. Set
    `wall_time_minutes` generously from the leaf's size and validation cost; it is a stuck-agent
-   cancellation boundary, not a performance target.
+   cancellation boundary, not a performance target. Scope a leaf's frozen validation to the
+   behavior its write set can change — the narrowest command that still proves the leaf — because
+   it runs at least twice per attempt; the project-wide suite belongs in phase acceptance, which
+   runs it unconditionally once per phase.
 8. Write a reviewed phase control `control/phase-{{N}}[-rK].json` containing the ordered active
    leaf-control queue, held-out phase and overall acceptance commands, next-phase identity (or
    `null`), and plan-review artifact path.

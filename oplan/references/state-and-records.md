@@ -325,7 +325,9 @@ The planner also writes one active versioned phase control and the harness recor
 ```
 
 The queue is the dispatch order and contains each active leaf exactly once. Acceptance commands
-stay out of leaf packets and leaf controls. `next_phase` is either the consecutive phase identity
+stay out of leaf packets and leaf controls. A leaf's `validation` is scoped to what its write set
+can change; `acceptance` carries the project-wide checks, so every phase runs the full suite once
+whatever its leaves validated. `next_phase` is either the consecutive phase identity
 or `null`. A final phase (`next_phase: null`) must contain nonempty held-out
 `overall_acceptance`; non-final phases use an empty list. A post-seal repair writes a new
 phase-control revision and new review path; it never overwrites the sealed phase control. All
