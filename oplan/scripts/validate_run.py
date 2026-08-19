@@ -319,6 +319,15 @@ def main() -> int:
             work_mode = work_mode_matches[0]
             if work_mode not in {"engineering", "experiment"}:
                 errors.append("baseline.md: work_mode must be engineering or experiment")
+        autonomy_matches = re.findall(r"^autonomy:\s*(\S+)\s*$", baseline, re.MULTILINE)
+        if not autonomy_matches:
+            errors.append("baseline.md: missing autonomy")
+        elif len(autonomy_matches) > 1:
+            errors.append("baseline.md: autonomy must appear exactly once")
+        else:
+            autonomy = autonomy_matches[0]
+            if autonomy not in {"interactive", "full"}:
+                errors.append("baseline.md: autonomy must be interactive or full")
         match = re.search(r"^commit:\s*([0-9a-f]{40}(?:[0-9a-f]{24})?)\s*$", baseline, re.MULTILINE)
         if not match:
             errors.append("baseline.md: missing full 'commit: <SHA>'")

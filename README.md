@@ -41,6 +41,10 @@ flowchart TD
   never blocks; the profile changes review
   depth and planning effort only, never the Git baseline, seals, single-writer rule, guard, or
   commit scoping.
+- Every run also records an autonomy setting (`interactive` or `full`) chosen with the user at
+  the start; under `interactive` the harness presents every phase in plain words and waits for
+  approval before the first executor, and again whenever a phase boundary materially changes
+  what it presented, and under `full` it prints and keeps going.
 
 Current reviewed behavior lives in [STATUS.md](STATUS.md).
 

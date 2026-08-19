@@ -38,7 +38,7 @@ class ValidateRunTests(unittest.TestCase):
         (root / "baseline.md").write_text(
             f"commit: {sha}\nrequest_sha256: {request_hash}\nprotected_paths: []\n"
             "run_modes: autonomous\ncommit_mode: auto\n"
-            "depth_profile: standard\nwork_mode: engineering\n",
+            "depth_profile: standard\nwork_mode: engineering\nautonomy: interactive\n",
             encoding="utf-8",
         )
         (root / "model-bindings.md").write_text(
@@ -554,6 +554,39 @@ class ValidateRunTests(unittest.TestCase):
         result = self.run_validator(workspace)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("work_mode must appear exactly once", result.stdout)
+
+    def test_autonomy_is_required(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("autonomy: interactive\n", ""),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("baseline.md: missing autonomy", result.stdout)
+
+    def test_autonomy_rejects_unknown_value(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace("autonomy: interactive", "autonomy: bogus"),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("autonomy must be interactive or full", result.stdout)
+
+    def test_autonomy_must_appear_once(self) -> None:
+        workspace = self.make_workspace()
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8") + "autonomy: interactive\n",
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("autonomy must appear exactly once", result.stdout)
 
     def test_commit_mode_none_requires_accepted_state_manifest(self) -> None:
         workspace = self.make_workspace()
