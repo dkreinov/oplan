@@ -92,6 +92,13 @@ def main() -> int:
             "a non-executor role dispatch — phase planner, plan reviewer, system reviewer, "
             "spec auditor, phase curator, or research agent"
         ),
+        "autonomy: interactive|full",
+        (
+            "Ask the autonomy question once at initialization, recommend `interactive`, "
+            "and record the answer verbatim."
+        ),
+        "the run-plan approval gate",
+        "intake.md",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -169,6 +176,16 @@ def main() -> int:
             "a non-executor role dispatch — phase planner, plan reviewer, system reviewer, "
             "spec auditor, phase curator, or research agent"
         ),
+        "autonomy: interactive|full",
+        "never two sequential waits",
+        "A change is material when it changes approved intent",
+        "blockers/CP-",
+        "status: complete | skipped-user-unreachable",
+        "the harness appends the missing line to every existing workspace baseline it will validate",
+        (
+            "every reported failure is a workspace validation reporting a missing required "
+            "`baseline.md` key"
+        ),
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -206,11 +223,43 @@ def main() -> int:
         "phase-planner.md missing phrase: stop-experiment",
         errors,
     )
+    require(
+        "MATERIAL_CHANGE:" in phase_planner,
+        "phase-planner.md missing phrase: MATERIAL_CHANGE:",
+        errors,
+    )
+
+    phase_curator = (ROOT / "templates/phase-curator.md").read_text(encoding="utf-8")
+    require(
+        "MATERIAL_CHANGE:" in phase_curator,
+        "phase-curator.md missing phrase: MATERIAL_CHANGE:",
+        errors,
+    )
+
+    grill_gate = (ROOT / "references/grill-gate.md").read_text(encoding="utf-8")
+    for phrase in ("## Pre-run scope grill", "## Mid-run escalation grill"):
+        require(phrase in grill_gate, f"grill-gate.md missing phrase: {phrase}", errors)
+
+    plan_reviewer = (ROOT / "templates/plan-reviewer.md").read_text(encoding="utf-8")
+    for phrase in (
+        "no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.",
+    ):
+        require(phrase in plan_reviewer, f"plan-reviewer.md missing phrase: {phrase}", errors)
 
     human_report = (ROOT / "templates/human-report.md").read_text(encoding="utf-8")
     require(
         "lead with what happened and why it matters in ordinary words" in human_report,
         "human-report.md missing phrase: lead with what happened and why it matters in ordinary words",
+        errors,
+    )
+    require(
+        "CHANGED SINCE LAST TIME:" in human_report,
+        "human-report.md missing phrase: CHANGED SINCE LAST TIME:",
+        errors,
+    )
+    require(
+        "WHAT IT AFFECTS:" in human_report,
+        "human-report.md missing phrase: WHAT IT AFFECTS:",
         errors,
     )
 

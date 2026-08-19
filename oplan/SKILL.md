@@ -77,8 +77,9 @@ Each lowering step must preserve meaning. The files are the memory and the evide
    write it to the correct record.
 9. **Explain without blocking.** Phase briefings and reports are mandatory. Wait only in the
    terminal gate `AWAITING_HUMAN_DECISION`.
-10. **No phase-boundary pause.** Continue autonomously by default. `/clear` handoffs are a manual
-    recovery option, never the normal control flow.
+10. **No phase-boundary pause.** Continue autonomously by default.
+    The one exception is the run-plan approval gate that `autonomy: interactive` requires (section 11).
+    `/clear` handoffs are a manual recovery option, never the normal control flow.
     Record `run_modes` in `baseline.md` at initialization in every run; the default value is `autonomous`. Record a supervised value
     (`pause-between-phases` or `step-by-step`) only when the user's request explicitly asks for
     supervision, and then honor the requested checkpoints through the `AWAITING_HUMAN_DECISION`
@@ -88,6 +89,7 @@ Each lowering step must preserve meaning. The files are the memory and the evide
 12. **Proportional rigor.** `baseline.md` records `depth_profile: fast|standard|paranoid` and
     `work_mode: engineering|experiment` at initialization; both lines are required and neither has
     a default when absent.
+    `baseline.md` also records `autonomy: interactive|full`, required and validated exactly the same way.
     Rigor is proportional; core safety is not.
     Verification that raises success from ~95% to ~99% is worth it only when the failure it prevents costs more than the verification plus the cheap fix.
     A profile changes review depth and planning effort only — never the Git baseline and protected
@@ -123,11 +125,18 @@ Ask the depth question once at initialization, recommend an answer, and never bl
 The reference holds the exact question, the recommendation rule and its tie-break, and the
 autonomous fallback used when no human can answer.
 
+Initialization also holds the pre-run scope conversation before the first phase planner is spawned
+and records it in harness-owned `intake.md`.
+Ask the autonomy question once at initialization, recommend `interactive`, and record the answer verbatim.
+The reference holds the coverage list, the `intake.md` schema, the recommendation, and the fallback
+used when no human can answer.
+
 The essential records are:
 
 | Artifact | Purpose | Writer |
 |---|---|---|
 | `request.md` | Immutable user brief and referenced inputs | harness copies verbatim at initialization |
+| `intake.md` | Pre-run scope conversation, its verbatim Q&A, and the `C-#` constraints it produced | harness at initialization |
 | `baseline.md` / `model-bindings.md` | Git safety and concrete tier ladder | harness at initialization |
 | `design.md` | Intent, non-goals, acceptance, proposed/approved decision IDs | phase planner proposes; harness promotes on review ship |
 | `plan.md` | Phase tree; current phase detailed, later phases sketched | phase planner |
@@ -171,6 +180,8 @@ flowchart TD
     L -->|no| O[RUN_OVERALL_ACCEPTANCE]
     O --> M[COMPLETE]
 ```
+
+Under `autonomy: interactive` the run waits for the human's approval between `REPORT_PHASE_PLAN` and the first `SPAWN_EXECUTOR`, and again whenever a phase curator reports a material change.
 
 Read the total verdict table in [state-and-records.md](references/state-and-records.md) before the
 first dispatch. It defines an exact candidate treatment and next action for every declared role
@@ -248,6 +259,13 @@ Before asking any question, write the blocker artifact and atomically enter
 human replies, copy the answer verbatim into the blocker, discard the blocked planner, and spawn a
 **new clean repair planner** with that artifact as `SOURCE`. The planner records the proposed
 decision ID. Never continue execution from an orally resolved decision.
+
+The pre-run scope grill is a different thing and is not optional. It runs after the Git preflight
+and before the first phase planner is spawned, and it covers what actually ships, success criteria
+in the user's terms, explicit non-goals, expected irreversible or outward-facing actions, and the
+rough budget or kill criteria — one question at a time, each with a recommendation, skipping what
+the request already answers. It is recorded in `intake.md`, which the phase planner reads as
+approved intent, and [grill-gate.md](references/grill-gate.md) holds both grills.
 
 ## 8. Executing leaves
 
@@ -383,6 +401,13 @@ After every phase, print and append:
 - acceptance results, cost/time when available, remaining risks, and what happens next.
 
 Technical detail belongs in the journal. The chat report exists to keep the human oriented.
+
+Under `autonomy: interactive` the harness presents all phases in simple words after the first plan
+review ships — the current phase in detail, later phases as sketches — and then waits at the
+run-plan approval gate before the first executor; under `autonomy: full` it prints them and
+continues. At any wait or briefing, if the human asks for more detail on a phase or a leaf, the
+harness answers from the written records in plain words first and technical second, without
+spawning an agent and without advancing state.
 
 ## 12. Field guide and decision propagation
 

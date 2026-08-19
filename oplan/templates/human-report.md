@@ -17,11 +17,15 @@ STEPS:
 DONE WHEN: <phase acceptance in ordinary words>
 BIGGEST RISK: <risk and how it will be noticed>
 DEPTH: <fast|standard|paranoid> — <one line on what that buys and costs>
-MODE: continuing automatically | waiting for your decision because <reason>
+CHANGED SINCE LAST TIME: <what changed from the last presentation and why — or nothing>
+MORE DETAIL: ask for any phase or leaf and I will explain it from the written records
+MODE: continuing automatically | waiting for your approval of this plan | waiting for your decision because <reason>
 === END PLAN ===
 ```
 
 In autonomous mode, print and continue. Never end the turn merely because a phase plan was shown.
+Under `autonomy: interactive` this plan block is a wait: print it, persist the checkpoint blocker,
+and stop until the human answers.
 
 ## After a phase
 
@@ -43,3 +47,16 @@ NEED FROM YOU: <decision/action or nothing>
 
 State failures as plainly as successes. `DISCOVERED` must report new information, not restate
 completed work. If `NEED FROM YOU` is `nothing`, continue immediately.
+
+## When a phase's evidence changes the plan
+
+```text
+=== PLAN CHANGE — PHASE <N> ===
+WHAT CHANGED: <one or two lines in ordinary words>
+WHY: <the evidence that forced it>
+WHAT IT AFFECTS: <phases, deliverables, or constraints>
+YOUR OPTIONS: approve | ask for more detail | ask for a different approach
+=== END PLAN CHANGE ===
+```
+
+Under `autonomy: full` this block is printed and the run continues.

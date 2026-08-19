@@ -6,6 +6,8 @@ Review Phase {{N}} before any executor runs. You did not write the plan. Read:
 
 - the active `{{phase_control}}` named by `phase-state.md`
 - `{{workspace}}/design.md`
+- `{{workspace}}/intake.md` when it exists — recorded approved intent whose `C-#` constraints rank
+  with approved decisions
 - Phase {{N}} in `{{workspace}}/plan.md`
 - only the leaf controls in the active phase control's queue
 - only the packets named by those leaf controls
@@ -25,6 +27,13 @@ Attack these failure classes:
 9. the plan changes approved intent without a recorded human decision.
 10. a packet and its control record disagree, a write set overlaps a protected baseline path, or
     the phase control queue/order/held-out acceptance does not match the reviewed plan.
+11. a phase or leaf spends effort on something the recorded intent already excludes:
+    no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.
+    Read `{{workspace}}/intake.md` when it exists, check every phase and every leaf against its
+    recorded `C-#` constraints, and confirm that every phase's stated purpose, including a later
+    sketch, traces to `request.md`, `intake.md`, or an approved decision. Confident, internally
+    consistent over-scoping into what the human recorded as indifference is an `intent` finding,
+    not a note.
 
 ## Materiality
 

@@ -13,12 +13,14 @@ Read in order:
 
 1. `{{workspace}}/phase-state.md`
 2. `{{workspace}}/request.md`
-3. `{{workspace}}/design.md`
-4. `{{workspace}}/plan.md`
-5. the previous phase of `{{workspace}}/journal.md` when present
-6. the artifact named by `SOURCE` when `MODE` is `repair`
-7. `{{workspace}}/field-guide/index.md`
-8. `{{workspace}}/baseline.md` and relevant code/project instructions — read its `depth_profile`
+3. `{{workspace}}/intake.md` — recorded approved intent whose `C-#` constraints rank with approved
+   decisions and which no plan may contradict
+4. `{{workspace}}/design.md`
+5. `{{workspace}}/plan.md`
+6. the previous phase of `{{workspace}}/journal.md` when present
+7. the artifact named by `SOURCE` when `MODE` is `repair`
+8. `{{workspace}}/field-guide/index.md`
+9. `{{workspace}}/baseline.md` and relevant code/project instructions — read its `depth_profile`
    and `work_mode` lines and plan accordingly
 
 Use no chat history. If the records omit a needed fact, classify it under `BLOCKERS`; do not infer
@@ -56,6 +58,12 @@ what an earlier agent probably meant.
 11. Keep planning proportional: Planning effort must not exceed the expected execution effort.
     When it would, plan coarser leaves and let the mechanical gates carry more weight; do not
     prototype beyond what a genuinely undecided design choice needs.
+12. Report `MATERIAL_CHANGE`. A change is material when it changes approved intent, an `intake.md`
+    constraint, run scope, a deliverable, a non-goal, the existence or purpose of any phase
+    including a later sketch, or an approved `D-###`. Every other change is routine and is reported
+    as `none`: leaf counts, leaf boundaries, step IDs, wall times, wording, file lists, validation
+    commands, risk marks, worker tiers, review rounds, and retries.
+    If this wording and `references/state-and-records.md` section 5 ever differ, that reference governs.
 
 When `MODE: repair`, directly address every finding in `SOURCE`. A repair of a packet that was
 already sealed must use a new step/version ID in the exact form `<phase>.<leaf>-rK` (for example
@@ -111,6 +119,7 @@ STATUS: planned | stop-experiment | blocked | record-gap
 PHASE: <N> <name>
 PHASE_CONTROL: <exact active control/phase-N[-rK].json path or none>
 TREE: <leaf count and one-line shape>
+MATERIAL_CHANGE: none | <one line naming what changed>
 FILES_WRITTEN: <plan/design/packet paths>
 DECISIONS: <D-### summaries or none>
 SKELETON_CHANGES: <=3 lines or none

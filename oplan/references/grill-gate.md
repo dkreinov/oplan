@@ -3,7 +3,21 @@
 Use this only when a phase planner or plan reviewer returns a blocker. `grill-me` is an interactive
 design interrogation tool, not a generic debugging or research agent.
 
-## Classification
+## Pre-run scope grill
+
+This grill is mandatory and it is not the escalation gate. It runs after the Git preflight and
+before the first phase planner is spawned, and it covers what actually ships as the production
+deliverable, success criteria in the user's terms, explicit non-goals, irreversible or
+outward-facing actions expected, and the rough time or cost budget or the kill criteria. Ask one
+question at a time, each with the harness's advice and a recommendation, and skip anything
+`request.md` already answers. Record the whole conversation, its verbatim answers, and the `C-#`
+constraints it produced in `intake.md`. When the user is unreachable at initialization, record the
+skip and its reason in `intake.md`, treat `request.md` alone as intent, and flag the gap in the
+first briefing.
+
+## Mid-run escalation grill
+
+### Classification
 
 | Blocker | Owner | Action |
 |---|---|---|
@@ -15,7 +29,7 @@ design interrogation tool, not a generic debugging or research agent.
 Do not invoke `grill-me` for failing tests, code uncertainty, naming that the planner owns,
 researchable facts, or every routine phase boundary.
 
-## Installed skill path
+### Installed skill path
 
 If `grill-me` is installed and callable, invoke it with:
 
@@ -32,7 +46,7 @@ the invoked skill can actually start its interview primitive. If the alias targe
 skill-to-skill invocation fails, treat `grill-me` as unavailable and use the fallback immediately;
 do not block the run on installing a dependency.
 
-## Fallback when grill-me is unavailable
+### Fallback when grill-me is unavailable
 
 Before invoking the installed skill or this fallback, write `blockers/B-###.md` and atomically set
 `STATE: AWAITING_HUMAN_DECISION`, `NEXT_ACTION: ASK_HUMAN blocker=<path>`, and the resume action in

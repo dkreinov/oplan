@@ -9,6 +9,7 @@ structure before the first planner runs:
 ```text
 .oplan/<run-name>/
   request.md                 # immutable verbatim user brief
+  intake.md                  # pre-run scope conversation and its constraints
   baseline.md                # verified Git base and protected dirty paths
   model-bindings.md          # role bindings and ordered worker_ladder
   design.md                  # intent and decision registry
@@ -67,8 +68,46 @@ Before planning, run a Git preflight:
    (autonomous restart or resume), the harness picks by applying that same recommendation rule
    including its tie-break, records the choice AND its rationale in `journal.md` and `baseline.md`,
    and proceeds; it never blocks the run on this question.
+   Record the autonomy intake in `baseline.md` too, with exactly one machine-readable
+   `autonomy: interactive|full` line, asked the same one-question-at-a-time way with
+   `interactive` recommended. `interactive` means the harness presents the whole plan and waits for
+   approval before the first executor, and again whenever a phase curator reports a material
+   change; `full` means the agents decide and the run never waits for approval. When the user
+   cannot answer, the harness records `interactive` with its rationale in `baseline.md` and
+   `journal.md` and proceeds, and never infers `full`, so an unattended run parks at its first
+   run-plan approval gate in `AWAITING_HUMAN_DECISION` with a persisted checkpoint blocker, which
+   is durable, resumable, and loses no work (D-002).
    Rigor is proportional; core safety is not.
-7. Run `validate_run.py` before spawning the first planner.
+7. Hold the pre-run scope grill before spawning the first phase planner and write `intake.md`.
+   Cover, asking only what `request.md` has not already answered, one question at a time, each with
+   the harness's advice and a recommendation: what actually ships as the production deliverable,
+   success criteria in the user's terms, explicit non-goals, irreversible or outward-facing actions
+   expected, and the rough time or cost budget or the kill criteria. Use the installed `grill-me`
+   skill when present, otherwise the bundled fallback style in `grill-gate.md`. When the user is
+   unreachable at initialization, record the skip and its reason, treat `request.md` alone as
+   intent, and flag the gap in the first briefing. `intake.md` uses this schema:
+
+   ```text
+   status: complete | skipped-user-unreachable
+   grill_tool: grill-me | fallback | none
+   reason: <one line, only when status is skipped-user-unreachable>
+
+   ## Q&A (verbatim)
+
+   ### Q1 — <topic>
+   Asked: <the question as asked, including the recommendation given>
+   Answer: <the user's words, verbatim>
+
+   ## Constraints
+
+   - C-1 — <one unambiguous statement> (from Q1)
+   ```
+
+   A `C-#` constraint ranks with an approved `D-###`. The phase planner reads `intake.md` as
+   approved intent, no plan may contradict a constraint, and changing one is a design amendment
+   routed through the human gate. `validate_run.py` does not require `intake.md`, because its
+   `status:` field records its own absence (D-007).
+8. Run `validate_run.py` before spawning the first planner.
 
 ### 1.1 Depth profiles
 
@@ -80,9 +119,14 @@ Before planning, run a Git preflight:
 | `standard` | once per phase revision, hard cap of three unsuccessful rounds | every leaf | phase gate plus leaves the planner marked high risk for a material reason | planners do not prototype beyond what an undecided design choice needs |
 | `fast` | no independent plan reviewer | high-risk leaves only | phase gate only | coarser leaves encouraged |
 
-A run workspace whose `baseline.md` predates these two keys is migrated by appending the two
-recorded lines to it, and that append is a harness action because run records are harness-owned and
-no leaf `write_set` may name a path inside `.oplan/`.
+A run workspace whose `baseline.md` predates these two keys, or predates `autonomy`, is migrated by
+appending the missing recorded lines to it, and that append is a harness action because run records
+are harness-owned and no leaf `write_set` may name a path inside `.oplan/`. A workspace from a run
+that finished before the approval gate existed records `autonomy: full`, because that is how it
+actually executed (D-008). When a change in flight makes a new `baseline.md` key required, that
+append is not left until each workspace happens to be touched again:
+the harness appends the missing line to every existing workspace baseline it will validate,
+before the first executor dispatch of the phase that introduces the key.
 
 These invariants hold in ALL profiles: the Git baseline and protected paths, sealed packets and
 controls, the single product writer, guard capture/check/revert around every executor,
@@ -287,7 +331,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 ## 5. Total verdict transitions
 
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
-a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, or a leaf `risk` is a
+a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, an `autonomy` value,
+a reported `MATERIAL_CHANGE`, or a leaf `risk` is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
 row it specialises.
@@ -321,13 +366,14 @@ the current action's attempt count.
 | planner `planned` | none | install returned `PHASE_CONTROL`; `REVIEWING_PLAN`; `SPAWN_PLAN_REVIEWER phase=N source=<PHASE_CONTROL>` |
 | planner `stop-experiment`, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker whose recorded resume action is `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>`, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | planner `stop-experiment` | accepted commits remain | the active phase control, its `plan_review` artifact, and their seals are unchanged and no new plan-review round opens; `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
-| workspace/control validation fail | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
+| workspace/control validation fail, other than a phase- or overall-acceptance failure whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
 | `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
 | planner `record-gap` | none | persist invalid-record evidence, then `BLOCKED` |
 | planner `blocked/repo_fact` | none | require returned `BLOCKER_PATH`; `PLANNING`; `SPAWN_RESEARCH_AGENT blocker=<path> attempt=1` |
 | planner `blocked/product|authority` | none | persist blocker, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | plan review `ship` | none | `REVIEWING_PLAN`; `SEAL_PHASE phase=N source=<PHASE_CONTROL>` |
 | seal success | immutable reviewed artifacts | `EXECUTING`; `REPORT_PHASE_PLAN phase=N source=<PHASE_CONTROL>` |
+| phase-plan report appended/printed, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-plan-rK.md` whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>`; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | phase-plan report appended/printed | none | `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>` |
 | seal failure/mismatch | revert any unaccepted candidate | `BLOCKED` |
 | third unsuccessful plan-review round under `depth_profile: standard` | none | persist a checkpoint blocker with concrete options, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
@@ -357,6 +403,7 @@ the current action's attempt count.
 | `ACCEPT_LEAF` record or commit failure | retain the candidate; never revert and never re-invoke the executor | persist the record evidence, then `BLOCKED`; `NEXT_ACTION: none` |
 | high-risk leaf system `repair` | revert | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | any review `human-decision` | revert unaccepted candidate | persist blocker, then human gate |
+| phase acceptance fail whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | accepted commits remain | the harness appends the missing recorded line to each named workspace `baseline.md`, journals the append and its reason, and re-runs phase acceptance once; a second failure of that re-run is `PLANNING`; fresh planner `mode=repair source=<acceptance log>` |
 | phase acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<acceptance log>` |
 | `ACCEPT_LEAF` succeeded for a leaf whose control records `kind: measurement`, under `work_mode: experiment` | accepted commits remain | `PLANNING`; `SPAWN_PHASE_PLANNER phase=N mode=repair source=<the accepted measurement leaf's recorded results artifact>`; the fresh planner decides the next arm or the stop from the recorded results (D-007), so no queued arm is dispatched against a stale plan |
 | `ACCEPT_LEAF` succeeded and the phase control's `queue` still names an unstarted leaf, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker naming the next queued control, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
@@ -367,7 +414,9 @@ the current action's attempt count.
 | phase system `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | phase system `human-decision` | accepted commits remain | persist blocker, then human gate |
 | phase system `pass` | none | `CLOSING_PHASE`; `SPAWN_PHASE_CURATOR phase=N source=<system review>` |
+| curator `reconciled`, `next_phase` present, `MATERIAL_CHANGE` not `none`, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-change.md` stating in plain words what changed, why, and what it affects, whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `CLOSING_PHASE`; `CLOSE_PHASE phase=N` then install next planning action; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | curator `reconciled`, `next_phase` present | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N` then install next planning action |
+| curator `reconciled`, final phase, `MATERIAL_CHANGE` not `none`, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-change.md` stating in plain words what changed, why, and what it affects, whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `CLOSING_PHASE`; `RUN_OVERALL_ACCEPTANCE phase=N source=<PHASE_CONTROL>`; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | curator `reconciled`, final phase | none | `CLOSING_PHASE`; `RUN_OVERALL_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
 | curator `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<curation review>` |
 | curator `human-decision` | accepted commits remain | persist blocker, then human gate |
@@ -375,9 +424,29 @@ the current action's attempt count.
 | research first `not-found` | none | fresh research agent at next tier, attempt 2 |
 | research second `not-found` | none | `BLOCKED` |
 | research `authority` | none | persist blocker, then human gate |
+| persisted human answer that asks only for more detail | none | answer every phase or leaf it names from the written records, plain words first and technical second, spawning no agent and advancing no state; `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<same path>` |
+| persisted human answer that requires a change to approved intent, an `intake.md` constraint, run scope, a deliverable, a non-goal, a phase's existence or purpose, or an approved `D-###` | revert unaccepted candidate if any | copy the answer verbatim and record it in the blocker as a design amendment; `PLANNING`; fresh planner `mode=repair source=<blocker path>` |
+| persisted human answer whose blocker records a resume action | revert unaccepted candidate if any | perform exactly the resume action that blocker records |
 | persisted human answer | revert unaccepted candidate if any | `PLANNING`; fresh planner `mode=repair source=<blocker path>` |
 | overall acceptance pass | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N`, print final phase report, then `COMPLETE` |
+| overall acceptance fail whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | accepted commits remain | the harness appends the missing recorded line to each named workspace `baseline.md`, journals the append and its reason, and re-runs overall acceptance once; a second failure of that re-run is `PLANNING`; fresh planner `mode=repair source=<overall log>` |
 | overall acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<overall log>` |
+
+When more than one wait rule would fire at the same event — an `autonomy: interactive` run-plan
+approval, an `autonomy: interactive` change escalation, a `run_modes` pause, or the experiment-stop
+checkpoint — persist exactly one combined checkpoint blocker whose `Reasons:` field lists every rule
+that fired, never two sequential waits; its recorded resume action is the action the run would
+perform at that event if no wait rule existed, that is the unconditional row for that event; and one
+human answer clears every listed reason.
+
+A change is material when it changes approved intent, an `intake.md` constraint, run scope, a
+deliverable, a non-goal, the existence or purpose of any phase including a later sketch, or an
+approved `D-###`. `MATERIAL_CHANGE` is reported by the phase planner and the phase curator and is
+never judged by the harness. Every other change is routine and is reported as `none`: leaf counts,
+leaf boundaries, step IDs, wall times, wording, file lists, validation commands, risk marks, worker
+tiers, review rounds, and retries. This paragraph is the authoritative statement of the boundary,
+and the copies in `templates/phase-planner.md` and `templates/phase-curator.md` restate it for roles
+that do not read this reference.
 
 Under `depth_profile: standard`, three unsuccessful plan-review rounds are a hard cap: the third
 persists a checkpoint blocker with concrete options and enters `AWAITING_HUMAN_DECISION` instead of
@@ -406,7 +475,11 @@ auto` it covers a failing stage, commit, or commit-diff verification.
 The guard exit-2 row covers `capture`, `check`, and `restore` only. A failing `record-accepted` or
 `verify-accepted` is routed by the `ACCEPT_LEAF` record or commit failure row regardless of its
 exit code, so the candidate is retained and never reverted; a `verify-accepted` failure surfaced
-through `validate_run.py` is routed by the workspace/control validation fail row instead. When
+through `validate_run.py` is routed by the workspace/control validation fail row instead. That
+routing precedent is bounded: a phase- or overall-acceptance failure whose
+every reported failure is a workspace validation reporting a missing required `baseline.md` key
+is routed by the acceptance-failure specialisation directly above its acceptance row and not by the
+workspace/control validation fail row. When
 `restore` itself exits 2, reverting is the action that failed: do not retry it, leave the worktree
 exactly as the failed `restore` left it, and record the restoration as incomplete and the
 candidate's write-set paths as unrestored before entering `BLOCKED`. A `capture` that exits 2
@@ -483,10 +556,16 @@ answer verbatim into that file, then perform the resume action that file records
 none, spawn a fresh repair planner with the file as `SOURCE`. Never pass an oral answer to an
 executor.
 
+A checkpoint blocker is a blocker written at a wait that is not a question. It is named
+`blockers/CP-<event>.md`, it carries a `Reasons:` field listing every wait rule that fired at that
+event, it records the resume action the table's row for that event names, and it uses the same
+fields as `blockers/B-###.md` otherwise.
+
 Append one compact journal block per accepted leaf with packet/control/seal paths, worker tier,
 validation, `did`, `failure_cause`, surprises, deviations, structural flags, decisions, audit and
 system verdicts, retries/escalation, verified cost or `unavailable`, commit, and timestamp. At
-phase close append acceptance, curation, interventions, cost by role, and harness context size or
+phase close append acceptance, curation including the curator's reported `MATERIAL_CHANGE` line,
+interventions, cost by role, and harness context size or
 `unavailable`. `STATUS.md` is current state only; `briefing.md` is append-only history.
 
 On resume, read `phase-state.md` first, verify `LAST_ACCEPTED` and all relevant seals, explain any
