@@ -186,6 +186,7 @@ def main() -> int:
             "every reported failure is a workspace validation reporting a missing required "
             "`baseline.md` key"
         ),
+        "each a `<model>/<effort>` pair",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -245,6 +246,23 @@ def main() -> int:
         "no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.",
     ):
         require(phrase in plan_reviewer, f"plan-reviewer.md missing phrase: {phrase}", errors)
+
+    model_policy = (ROOT / "references/model-policy.md").read_text(encoding="utf-8")
+    model_policy_phrases = [
+        "A binding is a `<model>/<effort>` pair, never a model alone",
+        "`default` means the effort the host session inherited",
+        "Cut effort where a miss is caught by a later gate; never where a miss IS the failure.",
+        "An effort-only bump is not a rung of the retry ladder.",
+        "only at a run boundary or as a journaled amendment at a leaf",
+        "seed exactly one one-sentence deviation from the packet into one candidate per",
+    ]
+    for phrase in model_policy_phrases:
+        require(phrase in model_policy, f"model-policy.md missing phrase: {phrase}", errors)
+    require(
+        "system reviewer 45" in text,
+        "SKILL.md missing phrase: system reviewer 45",
+        errors,
+    )
 
     human_report = (ROOT / "templates/human-report.md").read_text(encoding="utf-8")
     require(

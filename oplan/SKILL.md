@@ -116,9 +116,9 @@ Resolve `<python>` once for the current host: use `python3` when that command ex
 and acceptance commands.
 
 Initialization includes a verified full Git commit baseline, protected pre-existing dirty paths,
-and concrete role bindings with an ordered worker ladder. Never use symbolic `HEAD`, commit
-unrelated dirty work, or dispatch from an unborn repository. The reference defines the safe
-unborn/dirty paths.
+and concrete role bindings — each a `<model>/<effort>` pair — with an ordered worker ladder. Never
+use symbolic `HEAD`, commit unrelated dirty work, or dispatch from an unborn repository. The
+reference defines the safe unborn/dirty paths.
 
 Initialization also records `depth_profile` and `work_mode` beside `run_modes` and `commit_mode`.
 Ask the depth question once at initialization, recommend an answer, and never block the run on it.
@@ -366,7 +366,7 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
   exactly like an executor `failed` result.
 - The six bounded non-executor roles have one collective name:
   a non-executor role dispatch — phase planner, plan reviewer, system reviewer, spec auditor, phase curator, or research agent — is any dispatch of a role that carries a wall-time bound but no control record.
-  The bounds are phase planner 45 minutes, plan reviewer 30, system reviewer 30, spec auditor 20,
+  The bounds are phase planner 45 minutes, plan reviewer 30, system reviewer 45, spec auditor 20,
   phase curator 20, and research agent 20. The harness cancels at the bound, redispatches the same
   role once fresh with explicitly narrowed scope, and escalates a second overrun to the human gate.
 - A pre-acceptance system repair reverts the candidate before clean repair planning. A phase-gate

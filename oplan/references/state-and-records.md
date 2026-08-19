@@ -11,7 +11,7 @@ structure before the first planner runs:
   request.md                 # immutable verbatim user brief
   intake.md                  # pre-run scope conversation and its constraints
   baseline.md                # verified Git base and protected dirty paths
-  model-bindings.md          # role bindings and ordered worker_ladder
+  model-bindings.md          # role model/effort bindings and ordered worker_ladder
   design.md                  # intent and decision registry
   plan.md                    # phase tree and held-out phase acceptance
   phase-state.md             # small control record
@@ -42,7 +42,17 @@ Before planning, run a Git preflight:
    protected repo-relative path. Exclude only the new `.oplan/<run-name>/` workspace itself. A planner may
    read it but no leaf may touch it. If the task needs one, persist a human decision blocker; do
    not stash, reset, or commit unrelated work.
-4. Write concrete role bindings and the ordered worker ladder to `model-bindings.md`.
+4. Write concrete role bindings to `model-bindings.md`, each a `<model>/<effort>` pair, plus the
+   ordered worker and research ladders whose rungs are pairs too, cheapest reliable rung first:
+
+   ```text
+   main_harness: <model>/<effort>
+   phase_planner: <model>/high
+   executor: <model>/medium
+   worker_ladder: <cheapest reliable model>/medium, <next stronger model>/default
+   ```
+
+   `references/model-policy.md` holds the per-role starting efforts and the rule for changing one.
 5. Record `run_modes:` in `baseline.md`. The default is `autonomous` with automatic leaf commits.
    Record a supervised value (`pause-between-phases` or `step-by-step`) only when the user's
    request explicitly asked for it; never infer supervision. Under a supervised mode, the pause
