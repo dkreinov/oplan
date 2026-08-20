@@ -528,6 +528,15 @@ def main() -> int:
             errors.append(f"phase-state.md: {action_verb} source must equal PHASE_CONTROL")
     # phase_control is loaded only under --phase; without it this check is skipped, which is
     # covered because the mandated pre-dispatch `--require-sealed --phase N` rerun performs it.
+    if action_verb == "SPAWN_RESEARCH_AGENTS":
+        blocker_paths = action_values.get("blockers", "").split(",")
+        if len(blocker_paths) < 2 or not all(
+            path and safe_relative(path) and path.startswith("blockers/") for path in blocker_paths
+        ):
+            errors.append(
+                "phase-state.md: SPAWN_RESEARCH_AGENTS blockers must be "
+                "two or more comma-separated blockers/ paths"
+            )
     if (
         action_verb == "RUN_FINAL_GATE"
         and phase_control is not None

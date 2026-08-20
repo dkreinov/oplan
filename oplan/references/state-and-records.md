@@ -394,7 +394,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
 a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, an `autonomy` value,
 a reported `MATERIAL_CHANGE`, a leaf `risk`, the phase's finality (a `next_phase` that is
-`null`), or more than one returned `repo_fact` blocker is a
+`null`), more than one returned `repo_fact` blocker, or a research fan-out in progress or joined
+is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
 row it specialises.
@@ -486,9 +487,10 @@ the current action's attempt count.
 | curator `reconciled`, final phase | none | interpret the recorded overall-acceptance result of `RUN_FINAL_GATE` by the overall-acceptance rows below, exactly as if `RUN_OVERALL_ACCEPTANCE` had just returned it |
 | curator `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<curation review>` |
 | curator `human-decision` | accepted commits remain | persist blocker, then human gate |
-| a research fan-out report arrives while another fan-out blocker still lacks a persisted report | none | persist the report; a `not-found` retries only that blocker (`SPAWN_RESEARCH_AGENT blocker=<path> attempt=2`, next recorded tier); take no other routing action until every fan-out blocker holds a final report or one exhausts its ladder |
-| research fan-out joined, every blocker `evidence` | none | `PLANNING`; one fresh planner `mode=repair source=<comma-separated blocker paths>` |
-| research fan-out joined, any blocker `authority` | none | persist that blocker, then human gate; gathered evidence artifacts stay on disk for the eventual repair planner |
+| a research fan-out report arrives while another fan-out blocker still lacks a final persisted report | none | persist the report; a non-final `not-found` redispatches only that blocker fresh at the next recorded tier, its attempt derived from its `attempts/` artifacts, while `NEXT_ACTION` keeps the standing `SPAWN_RESEARCH_AGENTS` action unchanged for the whole fan-out; take no other routing action until every fan-out blocker holds a final report or one exhausts its ladder |
+| research fan-out joined, every blocker `evidence` | none | `PLANNING`; one fresh planner `mode=repair source=<comma-separated evidence paths from the final reports>` |
+| research fan-out joined, any blocker `authority` | none | record in each authority blocker a resume action naming a repair planner whose `source` lists that blocker plus every gathered evidence path; with several, each blocker's resume action asks the next and only the last spawns the planner; then human gate on the first |
+| planner `blocked` with both a `repo_fact` blocker and a `product` or `authority` blocker | none | route by the `blocked/product|authority` row; the `repo_fact` artifacts stay on disk and the post-answer repair planner returns them again if still open |
 | research `evidence` | none | `PLANNING`; fresh planner `mode=repair source=<evidence path>` |
 | research first `not-found` | none | fresh research agent at next tier, attempt 2 |
 | research second `not-found` | none | `BLOCKED` |
@@ -558,14 +560,23 @@ one `repo_fact` blocker — it writes one versioned `blockers/` artifact per que
 spawns one fresh research agent per blocker concurrently, each under the research-agent template
 with its own 20-minute non-executor bound, its own recorded research-ladder attempts, and its own
 `attempts/research-<blocker-stem>-a<N>.agent` and `.report` artifacts persisted per this section's
-spawn bookkeeping. `ACTIVE_AGENT` records `research fan-out pending`; the per-agent truth lives
-only in the `attempts/` artifacts, never in chat. The join is reached when every fan-out blocker
-holds a final persisted report — `evidence`, `authority`, or a second `not-found` after its tier
-retry — and any blocker exhausting its ladder blocks the run exactly as a lone one does. At an
-all-`evidence` join, one fresh repair planner receives every blocker path as its comma-separated
+spawn bookkeeping. `ACTIVE_AGENT` records `research fan-out pending` for the whole fan-out window — the one exception
+to this section's single-identifier replacement rule, because the per-agent identifiers live in
+the `attempts/*.agent` artifacts; the per-agent truth lives
+only in the `attempts/` artifacts, never in chat. `NEXT_ACTION` holds the plural action unchanged
+from first dispatch to join: per-blocker attempts and tiers are derived from the `attempts/`
+artifacts, never from the action line. The section 10 wall-time bounds and the malformed-report
+counts apply per blocker's own dispatch series, never across the fan-out — two different members
+each overrunning or malforming once are two first events. The join is reached when every fan-out
+blocker
+holds a final persisted report — `evidence`, `authority`, or a `not-found` at the top recorded
+tier — and any blocker exhausting its ladder cancels every still-running fan-out agent and blocks
+the run exactly as a lone one does. At an
+all-`evidence` join, one fresh repair planner receives every evidence path as its comma-separated
 `source`, so N questions cost one planner round instead of N. On resume the fan-out is
-re-performed whole: re-dispatch exactly the blockers that lack a persisted report, never one that
-has one.
+re-performed whole: re-dispatch exactly the blockers that lack a final persisted report — a
+non-final `not-found` re-dispatches at the tier its `attempts/` artifacts imply — and never a
+blocker whose report is final.
 
 The `autonomy: interactive` run-plan wait is keyed on the `REPORT_PHASE_PLAN` event and not on the
 phase: every sealed phase-control revision passes through that event, so a phase whose plan is

@@ -18,7 +18,8 @@ Read in order:
 4. `{{workspace}}/design.md`
 5. `{{workspace}}/plan.md`
 6. the previous phase of `{{workspace}}/journal.md` when present
-7. the artifact named by `SOURCE` when `MODE` is `repair`
+7. the artifact named by `SOURCE` when `MODE` is `repair` — when `SOURCE` is a comma-separated
+   list, read every artifact it names
 8. `{{workspace}}/field-guide/index.md`
 9. `{{workspace}}/baseline.md` and relevant code/project instructions — read its `depth_profile`
    and `work_mode` lines and plan accordingly

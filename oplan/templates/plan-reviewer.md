@@ -66,7 +66,7 @@ NOTES: <=3 non-blocking observations or none
 BLOCKERS:
   - [repo_fact|product|authority] <question>
   - none
-BLOCKER_PATH: <versioned blockers/ path written before return, or none>
+BLOCKER_PATH: <versioned blockers/ path written before return, comma-separated when several, or none>
 PLAIN: <=2 lines describing what you checked and found
 ```
 
