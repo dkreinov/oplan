@@ -174,11 +174,11 @@ flowchart TD
     I --> J{More leaves?}
     J -->|yes| G
     J -->|no| K[PHASE_ACCEPTANCE_AND_SYSTEM_REVIEW]
-    K --> Q[SPAWN_PHASE_CURATOR]
-    Q --> L{More phases?}
-    L -->|yes| B
-    L -->|no| O[RUN_OVERALL_ACCEPTANCE]
-    O --> M[COMPLETE]
+    K --> L{More phases?}
+    L -->|yes| Q[SPAWN_PHASE_CURATOR]
+    Q --> B
+    L -->|no| R["RUN_FINAL_GATE: curator ∥ overall acceptance"]
+    R --> M[COMPLETE]
 ```
 
 Under `autonomy: interactive` the run waits for the human's approval between `REPORT_PHASE_PLAN` and the first `SPAWN_EXECUTOR`, and again whenever a phase curator reports a material change.
@@ -347,7 +347,10 @@ conflicts, dead ends, and structural damage that a packet-conformance lens canno
 Keep the held-out phase criteria out of executor packets. Workers optimize their leaf; the phase
 gate checks the actual outcome.
 
-After final-phase curation, run the sealed overall acceptance commands before `COMPLETE`. The
+At the final phase's close the curator and the sealed overall acceptance commands run concurrently
+under `RUN_FINAL_GATE`: the curator's verdict is interpreted first, and a `repair` or
+`human-decision` verdict discards the acceptance output unread. `COMPLETE` still requires both a
+`reconciled` curation and an overall acceptance pass. The
 active phase control, not `plan.md`, tells the harness whether a next phase exists.
 
 ## 10. Bounded failure handling
@@ -415,7 +418,8 @@ Keep `field-guide/index.md` at most 40 lines unless the journal records why an o
 context cost. Promote only surprises that would shorten a future agent's trajectory.
 
 After phase acceptance and the phase system review pass, spawn a fresh isolated planner using
-[phase-curator.md](templates/phase-curator.md). Before the harness closes any phase—including the
+[phase-curator.md](templates/phase-curator.md); at the final phase this spawn is the curator half
+of `RUN_FINAL_GATE`. Before the harness closes any phase—including the
 final phase—the curator must reconcile:
 
 - new surprises and structural flags;

@@ -209,7 +209,7 @@ Legal `NEXT_ACTION` verbs by state:
 | `EXECUTING` | `REPORT_PHASE_PLAN`, `SPAWN_EXECUTOR`, `REVERT_CANDIDATE` |
 | `VALIDATING` | `RUN_VALIDATION` |
 | `REVIEWING_RESULT` | `SPAWN_SPEC_AUDITOR`, `COMPLETE_EVIDENCE`, `SPAWN_SYSTEM_REVIEWER`, `ACCEPT_LEAF` |
-| `CLOSING_PHASE` | `RUN_PHASE_ACCEPTANCE`, `RUN_OVERALL_ACCEPTANCE`, `SPAWN_SYSTEM_REVIEWER`, `SPAWN_PHASE_CURATOR`, `CLOSE_PHASE` |
+| `CLOSING_PHASE` | `RUN_PHASE_ACCEPTANCE`, `RUN_OVERALL_ACCEPTANCE`, `RUN_FINAL_GATE`, `SPAWN_SYSTEM_REVIEWER`, `SPAWN_PHASE_CURATOR`, `CLOSE_PHASE` |
 | `AWAITING_HUMAN_DECISION` | `ASK_HUMAN` |
 | `COMPLETE`, `BLOCKED` | `none` |
 
@@ -243,6 +243,7 @@ Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/sc
 | `ACCEPT_LEAF` | `control` |
 | `RUN_PHASE_ACCEPTANCE` | `phase`, `source` |
 | `RUN_OVERALL_ACCEPTANCE` | `phase`, `source` |
+| `RUN_FINAL_GATE` | `phase`, `source` |
 | `SPAWN_PHASE_CURATOR` | `phase`, `source` |
 | `CLOSE_PHASE` | `phase` |
 | `ASK_HUMAN` | `blocker` |
@@ -352,7 +353,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
 a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, an `autonomy` value,
-a reported `MATERIAL_CHANGE`, or a leaf `risk` is a
+a reported `MATERIAL_CHANGE`, a leaf `risk`, or the phase's finality (a `next_phase` that is
+`null`) is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
 row it specialises.
@@ -433,11 +435,12 @@ the current action's attempt count.
 | phase acceptance pass | accepted commits remain | `CLOSING_PHASE`; `SPAWN_SYSTEM_REVIEWER scope=phase-N source=<acceptance review>` |
 | phase system `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | phase system `human-decision` | accepted commits remain | persist blocker, then human gate |
+| phase system `pass`, final phase (`next_phase: null`) | none | `CLOSING_PHASE`; `RUN_FINAL_GATE phase=N source=<system review>` |
 | phase system `pass` | none | `CLOSING_PHASE`; `SPAWN_PHASE_CURATOR phase=N source=<system review>` |
 | curator `reconciled`, `next_phase` present, `MATERIAL_CHANGE` not `none`, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-change.md` stating in plain words what changed, why, and what it affects, whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `CLOSING_PHASE`; `CLOSE_PHASE phase=N` then install next planning action; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | curator `reconciled`, `next_phase` present | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N` then install next planning action |
-| curator `reconciled`, final phase, `MATERIAL_CHANGE` not `none`, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-change.md` stating in plain words what changed, why, and what it affects, whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `CLOSING_PHASE`; `RUN_OVERALL_ACCEPTANCE phase=N source=<PHASE_CONTROL>`; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
-| curator `reconciled`, final phase | none | `CLOSING_PHASE`; `RUN_OVERALL_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
+| curator `reconciled`, final phase, `MATERIAL_CHANGE` not `none`, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-change.md` stating in plain words what changed, why, and what it affects, whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is the action the recorded overall-acceptance result dictates by the overall-acceptance rows below; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
+| curator `reconciled`, final phase | none | interpret the recorded overall-acceptance result of `RUN_FINAL_GATE` by the overall-acceptance rows below, exactly as if `RUN_OVERALL_ACCEPTANCE` had just returned it |
 | curator `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<curation review>` |
 | curator `human-decision` | accepted commits remain | persist blocker, then human gate |
 | research `evidence` | none | `PLANNING`; fresh planner `mode=repair source=<evidence path>` |
@@ -458,6 +461,23 @@ checkpoint — persist exactly one combined checkpoint blocker whose `Reasons:` 
 that fired, never two sequential waits; its recorded resume action is the action the run would
 perform at that event if no wait rule existed, that is the unconditional row for that event; and one
 human answer clears every listed reason.
+
+`RUN_FINAL_GATE` is the final phase's close gate and the run's only concurrent action. The harness
+starts the sealed `overall_acceptance` commands in the background from the Git root — full output
+to `logs/phase-N-overall.log`, exactly the commands and treatment `RUN_OVERALL_ACCEPTANCE`
+defines — and, without waiting on them, spawns the fresh phase curator under the normal
+non-executor dispatch rules; `ACTIVE_AGENT` names the curator alone, because the acceptance side is
+harness-run commands, not an agent. The join interprets the curator's verdict first. A curator
+`repair` or `human-decision` follows its unconditional row and the concurrent acceptance output is
+discarded unread — journaled as discarded, never interpreted — so the repaired phase re-runs
+overall acceptance fresh at its own close. Only a curator `reconciled` reads the recorded
+acceptance result, and the missing-baseline-key self-heal re-run happens at that join too. On
+resume, `RUN_FINAL_GATE` is re-performed whole: a curator attempt with no persisted capped report
+is re-dispatched under the normal attempt counting, and acceptance commands whose log is absent or
+incomplete re-run from scratch. Running the sealed acceptance commands before the curator's verdict
+— or before an `autonomy: interactive` change checkpoint is answered — is not a product action:
+the commands were sealed at plan review, they validate rather than build, and any verdict or human
+answer that changes the plan discards their output.
 
 The `autonomy: interactive` run-plan wait is keyed on the `REPORT_PHASE_PLAN` event and not on the
 phase: every sealed phase-control revision passes through that event, so a phase whose plan is

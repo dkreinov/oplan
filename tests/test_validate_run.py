@@ -628,6 +628,52 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("intake.md: status must appear exactly once", result.stdout)
 
+    def test_run_final_gate_is_legal_in_closing_phase(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: CLOSING_PHASE")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_FINAL_GATE phase=1 source=reviews/phase-1-system.md",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("oplan run validation: PASS", result.stdout)
+
+    def test_run_final_gate_requires_source(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: CLOSING_PHASE")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_FINAL_GATE phase=1",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing_args=['source']", result.stdout)
+
+    def test_run_final_gate_is_illegal_outside_closing_phase(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8").replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_FINAL_GATE phase=1 source=reviews/phase-1-system.md",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("is illegal for STATE", result.stdout)
+
     def test_missing_required_file_reports_instead_of_crashing(self) -> None:
         workspace = self.make_workspace()
         (workspace / "baseline.md").unlink()

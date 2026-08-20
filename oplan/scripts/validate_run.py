@@ -34,8 +34,8 @@ ACTIONS_BY_STATE = {
         "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "SPAWN_SYSTEM_REVIEWER", "ACCEPT_LEAF",
     },
     "CLOSING_PHASE": {
-        "RUN_PHASE_ACCEPTANCE", "RUN_OVERALL_ACCEPTANCE", "SPAWN_SYSTEM_REVIEWER",
-        "SPAWN_PHASE_CURATOR", "CLOSE_PHASE",
+        "RUN_PHASE_ACCEPTANCE", "RUN_OVERALL_ACCEPTANCE", "RUN_FINAL_GATE",
+        "SPAWN_SYSTEM_REVIEWER", "SPAWN_PHASE_CURATOR", "CLOSE_PHASE",
     },
     "AWAITING_HUMAN_DECISION": {"ASK_HUMAN"},
     "COMPLETE": {"none"},
@@ -57,6 +57,7 @@ ACTION_REQUIRED_KEYS = {
     "ACCEPT_LEAF": {"control"},
     "RUN_PHASE_ACCEPTANCE": {"phase", "source"},
     "RUN_OVERALL_ACCEPTANCE": {"phase", "source"},
+    "RUN_FINAL_GATE": {"phase", "source"},
     "SPAWN_PHASE_CURATOR": {"phase", "source"},
     "CLOSE_PHASE": {"phase"},
     "ASK_HUMAN": {"blocker"},

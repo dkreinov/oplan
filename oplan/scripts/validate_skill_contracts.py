@@ -99,6 +99,7 @@ def main() -> int:
         ),
         "the run-plan approval gate",
         "intake.md",
+        "under `RUN_FINAL_GATE`: the curator's verdict is interpreted first",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -187,6 +188,9 @@ def main() -> int:
             "`baseline.md` key"
         ),
         "each a `<model>/<effort>` pair",
+        "`RUN_FINAL_GATE` is the final phase's close gate",
+        "The join interprets the curator's verdict first.",
+        "discarded unread — journaled as discarded, never interpreted",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
