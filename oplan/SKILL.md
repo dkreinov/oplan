@@ -182,6 +182,8 @@ flowchart TD
 ```
 
 Under `autonomy: interactive` the run waits for the human's approval between `REPORT_PHASE_PLAN` and the first `SPAWN_EXECUTOR`, and again whenever a phase curator reports a material change.
+Evidence steps in the queue skip the executor, validation, and review nodes: the harness runs
+their sealed commands itself and advances.
 
 Read the total verdict table in [state-and-records.md](references/state-and-records.md) before the
 first dispatch. It defines an exact candidate treatment and next action for every declared role

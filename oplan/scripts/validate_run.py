@@ -542,6 +542,17 @@ def main() -> int:
     }:
         if action_values.get("control") not in active_queue:
             errors.append(f"phase-state.md: {action_verb} control is not in active phase queue")
+    if action_verb in {
+        "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE", "RUN_VALIDATION",
+        "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "ACCEPT_LEAF",
+    }:
+        target = all_controls.get(action_values.get("control", ""))
+        if target is not None:
+            target_kind = target[1].get("kind")
+            if action_verb == "RUN_EVIDENCE" and target_kind != "evidence":
+                errors.append("phase-state.md: RUN_EVIDENCE must target an evidence control")
+            elif action_verb != "RUN_EVIDENCE" and target_kind == "evidence":
+                errors.append(f"phase-state.md: {action_verb} cannot target an evidence control")
 
     for control_path, control in controls:
         label = control_path.name

@@ -710,6 +710,40 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("control is not in active phase queue", result.stdout)
 
+    def test_run_evidence_must_target_evidence_control(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: EXECUTING")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_EVIDENCE control=control/1.1.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("RUN_EVIDENCE must target an evidence control", result.stdout)
+
+    def test_leaf_verbs_cannot_target_evidence_control(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: EXECUTING")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_EXECUTOR control=control/1.2.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SPAWN_EXECUTOR cannot target an evidence control", result.stdout)
+
     def test_evidence_seal_detects_control_mutation(self) -> None:
         workspace = self.make_workspace()
         control_path = self.add_evidence_control(workspace)

@@ -58,7 +58,7 @@ Before planning, run a Git preflight:
    request explicitly asked for it; never infer supervision. Under a supervised mode, the pause
    point persists a checkpoint blocker and enters `AWAITING_HUMAN_DECISION` instead of continuing:
    `pause-between-phases` pauses at each non-final `CLOSE_PHASE`, `step-by-step` pauses after each
-   `ACCEPT_LEAF`. Also record `commit_mode:` in `baseline.md`. The default is `auto` — accepted
+   `ACCEPT_LEAF` and after each journaled evidence step. Also record `commit_mode:` in `baseline.md`. The default is `auto` — accepted
    leaves are committed. Record `none` only when the user's request explicitly forbids commits;
    never infer it. When `commit_mode: none`, initialize the cumulative accepted-state manifest
    before the first dispatch by running this command:
@@ -317,7 +317,12 @@ root and must be read-only against product files and workspace records: anything
 product file is a leaf, and the plan review checks evidence commands for this along with the rest
 of the phase control. The harness executes evidence steps itself in queue order (section 5); no
 executor, spec audit, guard capture, or commit is involved, and evidence steps never enter
-`ACCEPTED_THIS_PHASE` or the accepted-state manifest.
+`ACCEPTED_THIS_PHASE` or the accepted-state manifest. Under `depth_profile: fast`, where no
+independent plan reviewer runs, the harness checks the read-only duty itself while writing the
+plan-review record. During an evidence run `phase-state.md` records `LEAF: <step-id>`,
+`ACTIVE_AGENT: none`, and `RETRY: 0`; each `run` command is an opaque top-level command under the
+no-interpolation rule of SKILL.md section 9; on resume an interrupted evidence step re-runs from
+scratch, truncating its log.
 
 `wall_time_minutes` is a parent-enforced cancellation boundary, never a promise the worker must
 estimate or meet; the packet tells the worker not to rush or self-abort. When an executor is still
@@ -420,7 +425,7 @@ the current action's attempt count.
 | phase-plan report appended/printed, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-plan-rK.md` whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>`; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | phase-plan report appended/printed | none | `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>` |
 | the control a row dispatches (first queued or next queued) carries `kind: evidence` | none | that row's dispatch action is `RUN_EVIDENCE control=<path>` in place of `SPAWN_EXECUTOR control=<path>`; everything else in the row is unchanged |
-| `RUN_EVIDENCE` completed | nothing to revert — an evidence step declares no writes | write full output to `logs/<step>.log`; journal the commands, exit statuses, and a short verbatim excerpt; an exit status is recorded data, never a failure and never retried; a step still running at `wall_time_minutes` is cancelled and the timeout journaled as its recorded outcome; then advance exactly like the `ACCEPT_LEAF` succeeded rows including their `run_modes` specialisations, with no `ACCEPTED_THIS_PHASE` entry and no manifest write |
+| `RUN_EVIDENCE` completed | nothing to revert — an evidence step declares no writes | write full output to `logs/<step>.log`; journal the commands, exit statuses, and a short verbatim excerpt; an exit status is recorded data, never a failure and never retried; a step still running at `wall_time_minutes` is cancelled and the timeout journaled as its recorded outcome; then advance with no `ACCEPTED_THIS_PHASE` entry and no manifest write — a journaled evidence step is neither unstarted nor accepted, so when the queue still names an unstarted entry, dispatch it exactly like the `ACCEPT_LEAF` succeeded queue rows including their `run_modes` specialisations, and when no unstarted entry remains, follow the `all queued leaves accepted` rows the same way |
 | seal failure/mismatch | revert any unaccepted candidate | `BLOCKED` |
 | third unsuccessful plan-review round under `depth_profile: standard` | none | persist a checkpoint blocker with concrete options, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | plan review `fix-first` | none | `PLANNING`; fresh planner `mode=repair source=<full review path>` |
@@ -656,6 +661,8 @@ A checkpoint blocker is a blocker written at a wait that is not a question. It i
 event, it records the resume action the table's row for that event names, and it uses the same
 fields as `blockers/B-###.md` otherwise.
 
+Append one compact journal block per evidence step with its commands, exit statuses, verbatim
+excerpt, and log path.
 Append one compact journal block per accepted leaf with packet/control/seal paths, worker tier,
 validation, `did`, `failure_cause`, surprises, deviations, structural flags, decisions, audit and
 system verdicts, retries/escalation, verified cost or `unavailable`, commit, and timestamp. At
