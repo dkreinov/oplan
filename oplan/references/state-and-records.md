@@ -453,7 +453,7 @@ the current action's attempt count.
 | persisted human answer | revert unaccepted candidate if any | `PLANNING`; fresh planner `mode=repair source=<blocker path>` |
 | overall acceptance pass | none | `CLOSING_PHASE`; `CLOSE_PHASE phase=N`, print final phase report, then `COMPLETE` |
 | overall acceptance fail whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | accepted commits remain | the harness appends the missing recorded line to each named workspace `baseline.md`, journals the append and its reason, and re-runs overall acceptance once; a second failure of that re-run is `PLANNING`; fresh planner `mode=repair source=<overall log>` |
-| overall acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<overall log>` |
+| overall acceptance fail | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<the failing leg's log, or both when both fail>` |
 
 When more than one wait rule would fire at the same event — an `autonomy: interactive` run-plan
 approval, an `autonomy: interactive` change escalation, a `run_modes` pause, or the experiment-stop
@@ -472,8 +472,10 @@ whose text literally names the run workspace path, in either slash form — such
 runs only at the join, after the curator has returned, so it reads quiesced records exactly as
 the serial flow did; every other command is a product command and runs in the background leg. A
 planner therefore writes any acceptance command that reads run-workspace records with the
-workspace path literally in its text, and the plan review checks that along with the rest of the
-phase control. The harness starts the product commands from the Git worktree root, truncating and
+workspace path literally in its text — its Git-root-relative spelling, `.oplan/<run-name>` — and
+the plan review checks that along with the rest of the phase control; under `depth_profile: fast`,
+where no independent plan reviewer runs, the harness checks it itself while writing the
+plan-review record. The harness starts the product commands from the Git worktree root, truncating and
 writing full output to `logs/<gate>-overall.log`, and after the last one exits writes
 `logs/<gate>-overall.result` with one `<exit code>  <command>` line per command;
 the result file is the completion marker, and a log without its result file is incomplete.
@@ -483,7 +485,7 @@ harness-run commands, not an agent. The join is reached when the curator's cappe
 persisted and the background result file exists. The join interprets the curator's verdict first.
 A curator
 `repair` or `human-decision` follows its unconditional row, the harness cancels any still-running
-background command, and the acceptance output is
+background command and deletes the gate's log and result files, and the acceptance output is
 discarded unread — journaled as discarded, never interpreted — so the repaired phase re-runs
 overall acceptance fresh at its own close under its new revision's `<gate>` names. Only a curator
 `reconciled` runs the workspace-reading commands, which write their own
@@ -497,7 +499,8 @@ is re-dispatched under the normal attempt counting, and a leg without its own re
 from scratch, truncating its files. A workspace whose final-phase curator was dispatched by the
 pre-gate serial
 flow has no gate log at all: on its `reconciled` verdict, run the sealed overall-acceptance
-commands now — serially, at the join — and interpret them by the same rows. Running sealed
+commands now — serially, at the join, writing the `<gate>-overall-join` log and result pair — and
+interpret them by the same rows. Running sealed
 product commands before the curator's verdict
 — or before an `autonomy: interactive` change checkpoint is answered — is not a product action:
 the commands were sealed at plan review, they validate rather than build, and any verdict or human
