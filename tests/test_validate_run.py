@@ -873,6 +873,34 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown key BOGUS", result.stdout)
 
+    def test_set_state_rejects_multiline_value(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "OPEN_BLOCKER=seal mismatch at 1.1\n# stray line")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a single line", result.stdout)
+
+    def test_set_state_rejects_empty_value(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "LEAF=")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("empty value for LEAF", result.stdout)
+
+    def test_set_state_rejects_duplicate_command_line_key(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "RETRY=1", "RETRY=2")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("duplicate key RETRY", result.stdout)
+
+    def test_set_state_refuses_malformed_existing_file(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8") + "BOGUS_KEY: x\n", encoding="utf-8"
+        )
+        result = self.run_set_state(workspace, "RETRY=1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("existing phase-state.md is malformed", result.stdout)
+
     def test_set_state_terminal_state_requires_reason(self) -> None:
         workspace = self.make_workspace()
         result = self.run_set_state(workspace, "STATE=BLOCKED", "NEXT_ACTION=none")

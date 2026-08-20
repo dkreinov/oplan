@@ -34,7 +34,13 @@ def main() -> int:
     if not state_path.is_file():
         print(f"set-state: missing {state_path}")
         return 2
-    values = parse_state(state_path, [])
+    read_errors: list[str] = []
+    values = parse_state(state_path, read_errors)
+    if read_errors:
+        print("set-state: REFUSED, existing phase-state.md is malformed; repair it deliberately first")
+        for error in read_errors:
+            print(f"- {error}")
+        return 1
     updates: dict[str, str] = {}
     for token in sys.argv[2:]:
         if "=" not in token:
@@ -44,7 +50,17 @@ def main() -> int:
         if key not in STATE_KEYS:
             print(f"set-state: unknown key {key}")
             return 2
-        updates[key] = value.strip()
+        if key in updates:
+            print(f"set-state: duplicate key {key}")
+            return 2
+        value = value.strip()
+        if not value:
+            print(f"set-state: empty value for {key}")
+            return 2
+        if "\n" in value or "\r" in value:
+            print(f"set-state: value for {key} must be a single line")
+            return 2
+        updates[key] = value
     values.update(updates)
 
     errors: list[str] = []

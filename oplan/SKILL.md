@@ -112,7 +112,7 @@ Copy the user's request verbatim to `request.md`; this is input capture, not pla
 with `--phase N` after a phase planner writes packets.
 
 Update `phase-state.md` only through `<skill-dir>/scripts/set_state.py`, never by hand; it refuses
-an illegal transition before writing.
+an illegal record before writing, and `validate_run.py` still runs after every transition.
 Resolve `<python>` once for the current host: use `python3` when that command exists, otherwise use
 `python`. Write the resolved executable — never the placeholder — into frozen validation, controls,
 and acceptance commands.
@@ -229,8 +229,10 @@ Later phases remain sketches until earlier evidence exists. A planner may change
 the journal proves its assumptions wrong, but may not silently change approved intent.
 
 Send the written phase artifacts—not a main-thread summary—to a fresh plan reviewer.
-Dispatch every reviewer with its template verbatim and nothing more: never add open-ended
-instructions such as "try hard to construct a failing implementation" —
+Dispatch every reviewer with its template plus only the run-specific facts a written rule
+requires — the section 10 narrowed-scope redispatch and `paranoid`'s reproduce-findings duty are
+such rules. Never add open-ended attack instructions such as "try hard to construct a failing
+implementation" —
 the template's bounded attack list is the review's stopping condition, and exhaustion is not. A phase is
 dispatchable only when the review artifact says `VERDICT: ship`, proposed decisions are promoted,
 and `validate_run.py <workspace> --phase N --seal` succeeds; that command performs the mechanical

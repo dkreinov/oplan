@@ -40,7 +40,7 @@ Attack these failure classes:
     or overall acceptance instrument, or an existing test asserts the exact content, key set, or
     property the packet orders changed. That is an impossible leaf: its executor will stop, and
     the repair cycle costs more than this check. An edit to an artifact a held-out gate has
-    already armed on (append-never, see the planner packet) is the same finding, even when the
+    already armed on — append-never: a gate pins one of its properties — is the same finding, even when the
     edit looks harmless — ask not only "can this change a number?" but "can this change any
     property the gate pins, such as ordering or timestamps?"
 

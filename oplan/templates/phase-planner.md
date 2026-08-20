@@ -81,7 +81,10 @@ what an earlier agent probably meant.
 A frozen artifact is append-never once a gate arms on it: when a held-out instrument pins any
 property of a file — content, key set, ordering, or commit timestamps — no later leaf may edit
 that file, however harmless the edit looks, because a revert is itself a post-gate change that can
-never be undone. Corrections go to an errata file beside the frozen artifact, never into it.
+never be undone. Corrections go to an errata file beside the frozen artifact, never into it —
+and apply the same test to the errata file itself: a gate that pins a directory listing, or an
+already-accepted directory's whole-tree state under `commit_mode: none`, makes a new file beside
+the artifact a gated edit too, so put the errata where no gate pins it.
 
 When `MODE: repair`, directly address every finding in `SOURCE`. A repair of a packet that was
 already sealed must use a new step/version ID in the exact form `<phase>.<leaf>-rK` (for example
