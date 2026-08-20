@@ -517,6 +517,8 @@ def main() -> int:
     }:
         if action_values.get("source") != phase_rel:
             errors.append(f"phase-state.md: {action_verb} source must equal PHASE_CONTROL")
+    # phase_control is loaded only under --phase; without it this check is skipped, which is
+    # covered because the mandated pre-dispatch `--require-sealed --phase N` rerun performs it.
     if (
         action_verb == "RUN_FINAL_GATE"
         and phase_control is not None

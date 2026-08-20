@@ -53,7 +53,9 @@ what an earlier agent probably meant.
    runs it unconditionally once per phase.
 8. Write a reviewed phase control `control/phase-{{N}}[-rK].json` containing the ordered active
    leaf-control queue, held-out phase and overall acceptance commands, next-phase identity (or
-   `null`), and plan-review artifact path.
+   `null`), and plan-review artifact path. Write any overall-acceptance command that reads the run
+   workspace's records with the workspace path literally in its text: the final gate classifies
+   commands by that text alone and runs such commands only after the curator returns.
 9. Update `plan.md` with the detailed current tree and honest later-phase sketches.
 10. For any returned `repo_fact`, `product`, or `authority` blocker, write its exact question,
     classification, evidence already checked, recommended next owner, and resume action to a

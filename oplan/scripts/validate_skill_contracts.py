@@ -193,6 +193,7 @@ def main() -> int:
         "discarded unread — journaled as discarded, never interpreted",
         "runs only at the join, after the curator has returned",
         "the result file is the completion marker, and a log without its result file is incomplete.",
+        "keyed to the gate's phase-control revision",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)

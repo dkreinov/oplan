@@ -349,7 +349,9 @@ gate checks the actual outcome.
 
 At the final phase's close the curator and the sealed overall acceptance commands run concurrently
 under `RUN_FINAL_GATE`: the curator's verdict is interpreted first, and a `repair` or
-`human-decision` verdict discards the acceptance output unread. `COMPLETE` still requires both a
+`human-decision` verdict discards the acceptance output unread. Only product commands run in the
+background: an acceptance command that reads the run workspace runs after the curator returns, so
+it sees quiesced records. `COMPLETE` still requires both a
 `reconciled` curation and an overall acceptance pass. The
 active phase control, not `plan.md`, tells the harness whether a next phase exists.
 
