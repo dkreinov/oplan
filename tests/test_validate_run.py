@@ -897,6 +897,28 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("two or more comma-separated blockers/ paths", result.stdout)
 
+    def test_spawn_research_agents_rejects_duplicate_paths(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: PLANNING")
+            .replace("PHASE_CONTROL: control/phase-1.json", "PHASE_CONTROL: none")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_RESEARCH_AGENTS blockers=blockers/B-001.md,blockers/B-001.md attempt=1",
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(VALIDATOR), str(workspace)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("two or more comma-separated blockers/ paths", result.stdout)
+
     def test_spawn_research_agents_rejects_trailing_comma(self) -> None:
         workspace = self.make_workspace()
         state = workspace / "phase-state.md"

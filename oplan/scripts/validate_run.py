@@ -530,7 +530,7 @@ def main() -> int:
     # covered because the mandated pre-dispatch `--require-sealed --phase N` rerun performs it.
     if action_verb == "SPAWN_RESEARCH_AGENTS":
         blocker_paths = action_values.get("blockers", "").split(",")
-        if len(blocker_paths) < 2 or not all(
+        if len(blocker_paths) < 2 or len(blocker_paths) != len(set(blocker_paths)) or not all(
             path and safe_relative(path) and path.startswith("blockers/") for path in blocker_paths
         ):
             errors.append(

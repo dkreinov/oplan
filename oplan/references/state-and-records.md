@@ -394,7 +394,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
 a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, an `autonomy` value,
 a reported `MATERIAL_CHANGE`, a leaf `risk`, the phase's finality (a `next_phase` that is
-`null`), more than one returned `repo_fact` blocker, or a research fan-out in progress or joined
+`null`), more than one returned `repo_fact` blocker, a `repo_fact` blocker returned together with
+a `product` or `authority` blocker, or a research fan-out in progress or joined
 is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
@@ -432,6 +433,7 @@ the current action's attempt count.
 | workspace/control validation fail, other than a phase- or overall-acceptance failure whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
 | `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
 | planner `record-gap` | none | persist invalid-record evidence, then `BLOCKED` |
+| planner `blocked` with a `repo_fact` blocker returned together with a `product` or `authority` blocker | none | route by the `blocked/product|authority` row; the `repo_fact` artifacts stay on disk and the post-answer repair planner returns them again if still open |
 | planner `blocked/repo_fact` with more than one `repo_fact` blocker | none | require one returned versioned blocker artifact per question; `PLANNING`; `SPAWN_RESEARCH_AGENTS blockers=<comma-separated paths> attempt=1` |
 | planner `blocked/repo_fact` | none | require returned `BLOCKER_PATH`; `PLANNING`; `SPAWN_RESEARCH_AGENT blocker=<path> attempt=1` |
 | planner `blocked/product|authority` | none | persist blocker, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
@@ -489,8 +491,7 @@ the current action's attempt count.
 | curator `human-decision` | accepted commits remain | persist blocker, then human gate |
 | a research fan-out report arrives while another fan-out blocker still lacks a final persisted report | none | persist the report; a non-final `not-found` redispatches only that blocker fresh at the next recorded tier, its attempt derived from its `attempts/` artifacts, while `NEXT_ACTION` keeps the standing `SPAWN_RESEARCH_AGENTS` action unchanged for the whole fan-out; take no other routing action until every fan-out blocker holds a final report or one exhausts its ladder |
 | research fan-out joined, every blocker `evidence` | none | `PLANNING`; one fresh planner `mode=repair source=<comma-separated evidence paths from the final reports>` |
-| research fan-out joined, any blocker `authority` | none | record in each authority blocker a resume action naming a repair planner whose `source` lists that blocker plus every gathered evidence path; with several, each blocker's resume action asks the next and only the last spawns the planner; then human gate on the first |
-| planner `blocked` with both a `repo_fact` blocker and a `product` or `authority` blocker | none | route by the `blocked/product|authority` row; the `repo_fact` artifacts stay on disk and the post-answer repair planner returns them again if still open |
+| research fan-out joined, any blocker `authority` | none | with one authority blocker, record in it a resume action naming a repair planner whose `source` lists that blocker plus every gathered evidence path; with several, each blocker's resume action asks the next in `blockers=` list order, and only the last records the planner, whose `source` lists every authority blocker plus every gathered evidence path; then human gate on the first in list order |
 | research `evidence` | none | `PLANNING`; fresh planner `mode=repair source=<evidence path>` |
 | research first `not-found` | none | fresh research agent at next tier, attempt 2 |
 | research second `not-found` | none | `BLOCKED` |
@@ -565,7 +566,9 @@ to this section's single-identifier replacement rule, because the per-agent iden
 the `attempts/*.agent` artifacts; the per-agent truth lives
 only in the `attempts/` artifacts, never in chat. `NEXT_ACTION` holds the plural action unchanged
 from first dispatch to join: per-blocker attempts and tiers are derived from the `attempts/`
-artifacts, never from the action line. The section 10 wall-time bounds and the malformed-report
+artifacts, never from the action line, and `RETRY` likewise mirrors the standing action's
+`attempt=1` for the whole window. A member whose `.agent` artifact has no matching `.report` is a
+crashed attempt and is re-dispatched fresh under the normal attempt counting. The section 10 wall-time bounds and the malformed-report
 counts apply per blocker's own dispatch series, never across the fan-out — two different members
 each overrunning or malforming once are two first events. The join is reached when every fan-out
 blocker
