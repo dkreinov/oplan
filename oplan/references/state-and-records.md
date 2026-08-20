@@ -400,7 +400,7 @@ a `product` or `authority` blocker, or a research fan-out in progress or joined
 is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
-row it specialises.
+row it specialises, or directly above a sibling specialisation of that same row.
 In this table, a non-executor role dispatch — phase planner, plan reviewer, system reviewer, spec auditor, phase curator, or research agent — is every role that carries a wall-time bound but no control JSON.
 “Revert” means run
 `<python> <skill-dir>/scripts/worktree_guard.py restore <git-root> <snapshot> <control>`, which
@@ -454,7 +454,7 @@ the current action's attempt count.
 | validation pass, leaf `risk: high`, `depth_profile: fast` | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` — no leaf system review under `fast`, so nothing to parallelize |
 | validation pass, leaf `risk: high` | retain candidate | `REVIEWING_RESULT`; `SPAWN_LEAF_REVIEWERS control=<path>` |
 | validation pass | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` |
-| `SPAWN_LEAF_REVIEWERS` reports both persisted | retain candidate | interpret the spec-audit verdict first, then route by the existing spec-audit and system-review rows exactly as if the two lenses had run serially; a `mismatch` or a `match/low` discards the parallel system report unread — journaled as discarded, never interpreted — and a `match/low` whose evidence completion becomes high spawns a fresh system reviewer serially per the `match/high` row; a `match/high` interprets the already-persisted system verdict by its rows without spawning again |
+| `SPAWN_LEAF_REVIEWERS` reports both persisted | retain candidate | interpret the spec-audit verdict first, then route by the existing spec-audit and system-review rows exactly as if the two lenses had run serially; a `mismatch` discards the parallel system report unread — journaled as discarded, and the discarded `reviews/<step>-system.md` artifact is deleted with that journaling so no later reviewer reads it; a `match/low` holds the system report while the evidence reviewer completes the named gap — evidence becoming high interprets the held system verdict exactly as `match/high` does, evidence remaining low discards it with the same journal-and-delete before `BLOCKED`; a `match/high` interprets the already-persisted system verdict by its rows without spawning again |
 | executor exceeds `wall_time_minutes` | cancel the agent, revert | count as executor `failed` at the current attempt |
 | a non-executor role dispatch exceeds its wall-time bound (first) | no candidate to revert | cancel the agent and redispatch the same role fresh once with explicitly narrowed scope |
 | a non-executor role dispatch exceeds its wall-time bound (second) | no candidate to revert | persist a blocker, then human gate |
@@ -568,7 +568,10 @@ candidate, each under its own template, wall-time bound, and malformed-report co
 reviewers pending` — an exception to this section's single-identifier replacement rule, like the
 research fan-out's. The join interprets the spec-audit verdict first and then routes by the
 existing serial rows, so every verdict combination ends exactly where the serial order ended; the
-system report is discarded unread whenever the serial order would not have spawned that review.
+system report is discarded unread — and its `reviews/` artifact deleted — whenever the routing
+never interprets it. When either role's dispatch series ends in `BLOCKED` or the human gate before
+the join — a second malformed report or a second overrun — the harness cancels the still-running
+sibling before entering that state, exactly as the research fan-out cancels its members.
 Both lenses are read-only over the candidate; a transient Git index collision (the auditor's `git
 add -N`) is a failed role dispatch handled by the normal redispatch rules. On resume the pair is
 re-performed whole: re-dispatch exactly the roles that lack a persisted report, never one that has

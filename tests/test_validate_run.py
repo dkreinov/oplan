@@ -765,8 +765,20 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("seal mismatch", result.stdout)
 
+    def make_control_high_risk(self, workspace: Path) -> None:
+        control_path = workspace / "control/1.1.json"
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["risk"] = "high"
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        packet = workspace / "packets/1.1.md"
+        packet.write_text(
+            packet.read_text(encoding="utf-8").replace("**Risk:** low", "**Risk:** high"),
+            encoding="utf-8",
+        )
+
     def test_spawn_leaf_reviewers_is_legal_in_reviewing_result(self) -> None:
         workspace = self.make_workspace()
+        self.make_control_high_risk(workspace)
         state = workspace / "phase-state.md"
         state.write_text(
             state.read_text(encoding="utf-8")
@@ -780,6 +792,63 @@ class ValidateRunTests(unittest.TestCase):
         )
         result = self.run_validator(workspace)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_spawn_leaf_reviewers_requires_high_risk(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_LEAF_REVIEWERS control=control/1.1.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must target a risk: high control", result.stdout)
+
+    def test_spawn_leaf_reviewers_illegal_under_fast(self) -> None:
+        workspace = self.make_workspace()
+        self.make_control_high_risk(workspace)
+        baseline = workspace / "baseline.md"
+        baseline.write_text(
+            baseline.read_text(encoding="utf-8").replace(
+                "depth_profile: standard", "depth_profile: fast"
+            ),
+            encoding="utf-8",
+        )
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_LEAF_REVIEWERS control=control/1.1.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("illegal under depth_profile: fast", result.stdout)
+
+    def test_spec_auditor_solo_illegal_at_high_risk_under_standard(self) -> None:
+        workspace = self.make_workspace()
+        self.make_control_high_risk(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_SPEC_AUDITOR control=control/1.1.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be SPAWN_LEAF_REVIEWERS", result.stdout)
 
     def test_spawn_leaf_reviewers_requires_control(self) -> None:
         workspace = self.make_workspace()

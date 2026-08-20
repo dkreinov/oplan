@@ -288,6 +288,7 @@ def main() -> int:
 
     protected_paths: set[str] = set()
     commit_mode = ""
+    depth_profile = ""
     baseline_path = workspace / "baseline.md"
     if baseline_path.is_file():
         baseline = baseline_path.read_text(encoding="utf-8")
@@ -565,6 +566,20 @@ def main() -> int:
                 errors.append("phase-state.md: RUN_EVIDENCE must target an evidence control")
             elif action_verb != "RUN_EVIDENCE" and target_kind == "evidence":
                 errors.append(f"phase-state.md: {action_verb} cannot target an evidence control")
+            elif action_verb == "SPAWN_LEAF_REVIEWERS":
+                if target[1].get("risk") != "high":
+                    errors.append("phase-state.md: SPAWN_LEAF_REVIEWERS must target a risk: high control")
+                if depth_profile == "fast":
+                    errors.append("phase-state.md: SPAWN_LEAF_REVIEWERS is illegal under depth_profile: fast")
+            elif (
+                action_verb == "SPAWN_SPEC_AUDITOR"
+                and target[1].get("risk") == "high"
+                and depth_profile in {"standard", "paranoid"}
+            ):
+                errors.append(
+                    "phase-state.md: SPAWN_SPEC_AUDITOR at a risk: high control under "
+                    f"depth_profile: {depth_profile} must be SPAWN_LEAF_REVIEWERS"
+                )
 
     for control_path, control in controls:
         label = control_path.name

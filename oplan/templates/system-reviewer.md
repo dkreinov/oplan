@@ -15,7 +15,10 @@ Read:
   none`, the verified cumulative `attempts/accepted-state.json` plus its sealed controls and the
   current worktree paths it covers
 - for a pre-acceptance high-risk leaf: its control record, last accepted commit, and current
-  candidate worktree diff over that control record's write set
+  candidate worktree diff over that control record's write set. A NEW untracked file in the write
+  set is invisible to `git diff`: run `git add -N <file>` on new write-set paths yourself before
+  diffing. A transient index collision with the concurrently running spec auditor is a failed
+  dispatch to retry, never a finding.
 - `{{workspace}}/reviews/` for unresolved low-confidence evidence only
 
 Check:

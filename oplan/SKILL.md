@@ -329,7 +329,8 @@ For each completed leaf:
    Shell quoting used only to transport the opaque command is not a packet change. Write full
    output to `logs/<step>.log`; expose only exit status and at most 20 tail lines to the harness.
 4. Under `paranoid` and `standard` spawn a fresh spec auditor on every leaf using
-   [auditor.md](templates/auditor.md); under `fast` spawn one only for a `risk: high` leaf. Give artifact paths and
+   [auditor.md](templates/auditor.md) — on a `risk: high` leaf, as half of the concurrent
+   `SPAWN_LEAF_REVIEWERS` pair in step 5; under `fast` spawn one only for a `risk: high` leaf. Give artifact paths and
    the last accepted commit; let the auditor create and inspect the scoped diff without routing it
    through the harness.
    If it returns `match` with low confidence, use one fresh
