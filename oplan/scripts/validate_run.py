@@ -517,6 +517,12 @@ def main() -> int:
     }:
         if action_values.get("source") != phase_rel:
             errors.append(f"phase-state.md: {action_verb} source must equal PHASE_CONTROL")
+    if (
+        action_verb == "RUN_FINAL_GATE"
+        and phase_control is not None
+        and phase_control.get("next_phase") is not None
+    ):
+        errors.append("phase-state.md: RUN_FINAL_GATE requires a final phase (next_phase null)")
     active_queue = {
         path.relative_to(workspace).as_posix() for path, _control in controls
     } if args.phase is not None else set()

@@ -660,6 +660,27 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("missing_args=['source']", result.stdout)
 
+    def test_run_final_gate_rejects_non_final_phase(self) -> None:
+        workspace = self.make_workspace()
+        phase_control = workspace / "control/phase-1.json"
+        data = json.loads(phase_control.read_text(encoding="utf-8"))
+        data["next_phase"] = {"number": 2, "name": "follow-up"}
+        data["overall_acceptance"] = []
+        phase_control.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: CLOSING_PHASE")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_FINAL_GATE phase=1 source=reviews/phase-1-system.md",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("RUN_FINAL_GATE requires a final phase", result.stdout)
+
     def test_run_final_gate_is_illegal_outside_closing_phase(self) -> None:
         workspace = self.make_workspace()
         state = workspace / "phase-state.md"

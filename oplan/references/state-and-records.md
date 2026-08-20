@@ -462,19 +462,31 @@ that fired, never two sequential waits; its recorded resume action is the action
 perform at that event if no wait rule existed, that is the unconditional row for that event; and one
 human answer clears every listed reason.
 
-`RUN_FINAL_GATE` is the final phase's close gate and the run's only concurrent action. The harness
-starts the sealed `overall_acceptance` commands in the background from the Git root — full output
-to `logs/phase-N-overall.log`, exactly the commands and treatment `RUN_OVERALL_ACCEPTANCE`
-defines — and, without waiting on them, spawns the fresh phase curator under the normal
+`RUN_FINAL_GATE` is the final phase's close gate and, today, the run's only concurrent action. It
+splits the sealed `overall_acceptance` list in two mechanically: a command whose text names the
+run workspace path (such as a `validate_run.py <workspace>` check) is a workspace-reading command
+and runs only at the join, after the curator has returned, so it reads quiesced records exactly as
+the serial flow did; every other command is a product command and runs in the background leg. The
+harness starts the product commands from the Git worktree root, writes their full output to
+`logs/phase-N-overall.log`, and after the last one exits writes `logs/phase-N-overall.result` with
+one `<exit code>  <command>` line per command;
+the result file is the completion marker, and a log without its result file is incomplete.
+Without waiting on that leg, the harness spawns the fresh phase curator under the normal
 non-executor dispatch rules; `ACTIVE_AGENT` names the curator alone, because the acceptance side is
-harness-run commands, not an agent. The join interprets the curator's verdict first. A curator
-`repair` or `human-decision` follows its unconditional row and the concurrent acceptance output is
+harness-run commands, not an agent. The join is reached when the curator's capped report is
+persisted and the result file exists. The join interprets the curator's verdict first. A curator
+`repair` or `human-decision` follows its unconditional row, the harness cancels any still-running
+background command, and the acceptance output is
 discarded unread — journaled as discarded, never interpreted — so the repaired phase re-runs
-overall acceptance fresh at its own close. Only a curator `reconciled` reads the recorded
-acceptance result, and the missing-baseline-key self-heal re-run happens at that join too. On
+overall acceptance fresh at its own close. Only a curator `reconciled` runs the workspace-reading
+commands, appends their output and exit lines to the same log and result file, and interprets the
+combined recorded result; the missing-baseline-key self-heal re-run happens at that join too. On
 resume, `RUN_FINAL_GATE` is re-performed whole: a curator attempt with no persisted capped report
-is re-dispatched under the normal attempt counting, and acceptance commands whose log is absent or
-incomplete re-run from scratch. Running the sealed acceptance commands before the curator's verdict
+is re-dispatched under the normal attempt counting, and a background leg without its result file
+re-runs from scratch. A workspace whose final-phase curator was dispatched by the pre-gate serial
+flow has no gate log at all: on its `reconciled` verdict, run the sealed overall-acceptance
+commands now — serially, at the join — and interpret them by the same rows. Running sealed
+product commands before the curator's verdict
 — or before an `autonomy: interactive` change checkpoint is answered — is not a product action:
 the commands were sealed at plan review, they validate rather than build, and any verdict or human
 answer that changes the plan discards their output.
