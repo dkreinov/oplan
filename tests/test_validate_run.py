@@ -765,6 +765,55 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("seal mismatch", result.stdout)
 
+    def test_spawn_leaf_reviewers_is_legal_in_reviewing_result(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace("LEAF: none", "LEAF: 1.1")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_LEAF_REVIEWERS control=control/1.1.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_spawn_leaf_reviewers_requires_control(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_LEAF_REVIEWERS",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing_args=['control']", result.stdout)
+
+    def test_spawn_leaf_reviewers_cannot_target_evidence_control(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: REVIEWING_RESULT")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_LEAF_REVIEWERS control=control/1.2.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SPAWN_LEAF_REVIEWERS cannot target an evidence control", result.stdout)
+
     def test_run_final_gate_is_legal_in_closing_phase(self) -> None:
         workspace = self.make_workspace()
         state = workspace / "phase-state.md"

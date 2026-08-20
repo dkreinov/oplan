@@ -4,7 +4,7 @@
 > from the narrow spec auditor: it may inspect the relevant codebase and phase records.
 
 Review the integrated system after {{scope}}. Do not judge whether each worker obeyed its packet;
-the spec auditor already did that. Look for failures that appear only when correct-looking pieces
+the spec auditor's lens covers that. Look for failures that appear only when correct-looking pieces
 meet.
 
 Read:

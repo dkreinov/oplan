@@ -336,7 +336,10 @@ For each completed leaf:
    [evidence reviewer](templates/evidence-reviewer.md) on only the named gap.
 5. For `risk: high` under `paranoid` and `standard`, spawn a fresh system reviewer using
    [system-reviewer.md](templates/system-reviewer.md); under `fast` no leaf-level system review is
-   spawned, because system review runs at the phase gate only. High risk includes public API/schema,
+   spawned, because system review runs at the phase gate only. On a high-risk leaf the auditor and
+   system reviewer dispatch concurrently under `SPAWN_LEAF_REVIEWERS`: the audit verdict is
+   interpreted first, and the system report is discarded unread whenever the serial order would
+   not have spawned that review. High risk includes public API/schema,
    persistence, migration, security, concurrency, money, irreversible changes, cross-module
    behavior, user-flow state transitions, and creative or natural-language content whose quality
    no frozen mechanical validation can prove (such leaves also require a strong worker tier per

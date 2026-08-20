@@ -203,6 +203,8 @@ def main() -> int:
         "<python> <skill-dir>/scripts/set_state.py",
         "`SPAWN_RESEARCH_AGENTS` is the planning gate's fan-out.",
         "one planner round instead of N",
+        "`SPAWN_LEAF_REVIEWERS` is the high-risk leaf's review pair",
+        "exactly as if the two lenses had run serially",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)

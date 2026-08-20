@@ -208,7 +208,7 @@ Legal `NEXT_ACTION` verbs by state:
 | `REVIEWING_PLAN` | `SPAWN_PLAN_REVIEWER`, `SEAL_PHASE` |
 | `EXECUTING` | `REPORT_PHASE_PLAN`, `SPAWN_EXECUTOR`, `RUN_EVIDENCE`, `REVERT_CANDIDATE` |
 | `VALIDATING` | `RUN_VALIDATION` |
-| `REVIEWING_RESULT` | `SPAWN_SPEC_AUDITOR`, `COMPLETE_EVIDENCE`, `SPAWN_SYSTEM_REVIEWER`, `ACCEPT_LEAF` |
+| `REVIEWING_RESULT` | `SPAWN_SPEC_AUDITOR`, `SPAWN_LEAF_REVIEWERS`, `COMPLETE_EVIDENCE`, `SPAWN_SYSTEM_REVIEWER`, `ACCEPT_LEAF` |
 | `CLOSING_PHASE` | `RUN_PHASE_ACCEPTANCE`, `RUN_OVERALL_ACCEPTANCE`, `RUN_FINAL_GATE`, `SPAWN_SYSTEM_REVIEWER`, `SPAWN_PHASE_CURATOR`, `CLOSE_PHASE` |
 | `AWAITING_HUMAN_DECISION` | `ASK_HUMAN` |
 | `COMPLETE`, `BLOCKED` | `none` |
@@ -240,6 +240,7 @@ Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/sc
 | `REVERT_CANDIDATE` | `control` |
 | `RUN_VALIDATION` | `attempt`, `control` |
 | `SPAWN_SPEC_AUDITOR` | `control` |
+| `SPAWN_LEAF_REVIEWERS` | `control` |
 | `COMPLETE_EVIDENCE` | `control`, `review` |
 | `SPAWN_SYSTEM_REVIEWER` | `scope`, `source` |
 | `ACCEPT_LEAF` | `control` |
@@ -450,7 +451,10 @@ the current action's attempt count.
 | measurement leaf `done` under `work_mode: experiment` with a negative or unexpected result | retain candidate | `VALIDATING`; `RUN_VALIDATION control=<path> attempt=N`, exactly like any `done` leaf; the result is recorded, not reverted |
 | executor `done` | retain candidate | `VALIDATING`; `RUN_VALIDATION control=<path> attempt=N` |
 | validation pass, leaf `risk: low`, `depth_profile: fast` | retain candidate | `REVIEWING_RESULT`; `ACCEPT_LEAF control=<path>` (the spec audit is skipped by profile, not by judgement) |
+| validation pass, leaf `risk: high`, `depth_profile: fast` | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` — no leaf system review under `fast`, so nothing to parallelize |
+| validation pass, leaf `risk: high` | retain candidate | `REVIEWING_RESULT`; `SPAWN_LEAF_REVIEWERS control=<path>` |
 | validation pass | retain candidate | `REVIEWING_RESULT`; `SPAWN_SPEC_AUDITOR control=<path>` |
+| `SPAWN_LEAF_REVIEWERS` reports both persisted | retain candidate | interpret the spec-audit verdict first, then route by the existing spec-audit and system-review rows exactly as if the two lenses had run serially; a `mismatch` or a `match/low` discards the parallel system report unread — journaled as discarded, never interpreted — and a `match/low` whose evidence completion becomes high spawns a fresh system reviewer serially per the `match/high` row; a `match/high` interprets the already-persisted system verdict by its rows without spawning again |
 | executor exceeds `wall_time_minutes` | cancel the agent, revert | count as executor `failed` at the current attempt |
 | a non-executor role dispatch exceeds its wall-time bound (first) | no candidate to revert | cancel the agent and redispatch the same role fresh once with explicitly narrowed scope |
 | a non-executor role dispatch exceeds its wall-time bound (second) | no candidate to revert | persist a blocker, then human gate |
@@ -556,12 +560,26 @@ product commands before the curator's verdict
 the commands were sealed at plan review, they validate rather than build, and any verdict or human
 answer that changes the plan discards their output.
 
+`SPAWN_LEAF_REVIEWERS` is the high-risk leaf's review pair under `standard` and `paranoid`: one
+fresh spec auditor and one fresh leaf system reviewer dispatched concurrently over the same frozen
+candidate, each under its own template, wall-time bound, and malformed-report count, with its own
+`attempts/<role>-<step>-a<N>.agent` and `.report` artifacts. `NEXT_ACTION` holds
+`SPAWN_LEAF_REVIEWERS` unchanged until both reports are persisted; `ACTIVE_AGENT` records `leaf
+reviewers pending` — an exception to this section's single-identifier replacement rule, like the
+research fan-out's. The join interprets the spec-audit verdict first and then routes by the
+existing serial rows, so every verdict combination ends exactly where the serial order ended; the
+system report is discarded unread whenever the serial order would not have spawned that review.
+Both lenses are read-only over the candidate; a transient Git index collision (the auditor's `git
+add -N`) is a failed role dispatch handled by the normal redispatch rules. On resume the pair is
+re-performed whole: re-dispatch exactly the roles that lack a persisted report, never one that has
+one.
+
 `SPAWN_RESEARCH_AGENTS` is the planning gate's fan-out. When a planner's report returns more than
 one `repo_fact` blocker — it writes one versioned `blockers/` artifact per question — the harness
 spawns one fresh research agent per blocker concurrently, each under the research-agent template
 with its own 20-minute non-executor bound, its own recorded research-ladder attempts, and its own
 `attempts/research-<blocker-stem>-a<N>.agent` and `.report` artifacts persisted per this section's
-spawn bookkeeping. `ACTIVE_AGENT` records `research fan-out pending` for the whole fan-out window — the one exception
+spawn bookkeeping. `ACTIVE_AGENT` records `research fan-out pending` for the whole fan-out window — an exception
 to this section's single-identifier replacement rule, because the per-agent identifiers live in
 the `attempts/*.agent` artifacts; the per-agent truth lives
 only in the `attempts/` artifacts, never in chat. `NEXT_ACTION` holds the plural action unchanged

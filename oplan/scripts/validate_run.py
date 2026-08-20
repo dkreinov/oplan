@@ -31,7 +31,8 @@ ACTIONS_BY_STATE = {
     "EXECUTING": {"REPORT_PHASE_PLAN", "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE"},
     "VALIDATING": {"RUN_VALIDATION"},
     "REVIEWING_RESULT": {
-        "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "SPAWN_SYSTEM_REVIEWER", "ACCEPT_LEAF",
+        "SPAWN_SPEC_AUDITOR", "SPAWN_LEAF_REVIEWERS", "COMPLETE_EVIDENCE",
+        "SPAWN_SYSTEM_REVIEWER", "ACCEPT_LEAF",
     },
     "CLOSING_PHASE": {
         "RUN_PHASE_ACCEPTANCE", "RUN_OVERALL_ACCEPTANCE", "RUN_FINAL_GATE",
@@ -54,6 +55,7 @@ ACTION_REQUIRED_KEYS = {
     "REVERT_CANDIDATE": {"control"},
     "RUN_VALIDATION": {"control", "attempt"},
     "SPAWN_SPEC_AUDITOR": {"control"},
+    "SPAWN_LEAF_REVIEWERS": {"control"},
     "COMPLETE_EVIDENCE": {"control", "review"},
     "SPAWN_SYSTEM_REVIEWER": {"scope", "source"},
     "ACCEPT_LEAF": {"control"},
@@ -548,13 +550,13 @@ def main() -> int:
     } if args.phase is not None else set()
     if args.phase is not None and action_verb in {
         "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE", "RUN_VALIDATION",
-        "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "ACCEPT_LEAF"
+        "SPAWN_SPEC_AUDITOR", "SPAWN_LEAF_REVIEWERS", "COMPLETE_EVIDENCE", "ACCEPT_LEAF"
     }:
         if action_values.get("control") not in active_queue:
             errors.append(f"phase-state.md: {action_verb} control is not in active phase queue")
     if action_verb in {
         "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE", "RUN_VALIDATION",
-        "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "ACCEPT_LEAF",
+        "SPAWN_SPEC_AUDITOR", "SPAWN_LEAF_REVIEWERS", "COMPLETE_EVIDENCE", "ACCEPT_LEAF",
     }:
         target = all_controls.get(action_values.get("control", ""))
         if target is not None:
