@@ -832,6 +832,63 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("is illegal for STATE", result.stdout)
 
+    def test_spawn_research_agents_is_legal_in_planning(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: PLANNING")
+            .replace("PHASE_CONTROL: control/phase-1.json", "PHASE_CONTROL: none")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_RESEARCH_AGENTS blockers=blockers/B-001.md,blockers/B-002.md attempt=1",
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(VALIDATOR), str(workspace)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_spawn_research_agents_requires_blockers(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: PLANNING")
+            .replace("PHASE_CONTROL: control/phase-1.json", "PHASE_CONTROL: none")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_RESEARCH_AGENTS attempt=1",
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(VALIDATOR), str(workspace)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing_args=['blockers']", result.stdout)
+
+    def test_spawn_research_agents_is_illegal_outside_planning(self) -> None:
+        workspace = self.make_workspace()
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8").replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: SPAWN_RESEARCH_AGENTS blockers=blockers/B-001.md attempt=1",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("is illegal for STATE", result.stdout)
+
     def run_set_state(self, workspace: Path, *updates: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SET_STATE), str(workspace), *updates],

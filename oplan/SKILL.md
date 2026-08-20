@@ -212,7 +212,7 @@ packets become sealed only after independent plan-review `ship`.
 
 Handle the planner report mechanically: `planned` → validate run artifacts then spawn the plan
 reviewer after installing its returned `PHASE_CONTROL`; `record-gap` → persist the invalid-record evidence and set `BLOCKED`; `blocked/repo_fact`
-→ send the named question to a fresh research agent; other blockers → apply the grill
+→ send each named question to its own fresh research agent, in parallel when there are several; other blockers → apply the grill
 classification below; `stop-experiment` → run phase acceptance for the active phase control without
 spawning a plan reviewer or installing a new one. Never ask an executor to work from a partially planned phase.
 

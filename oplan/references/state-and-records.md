@@ -204,7 +204,7 @@ Legal `NEXT_ACTION` verbs by state:
 | State | Legal verbs |
 |---|---|
 | `INITIALIZING` | `INITIALIZE_BASELINE` |
-| `PLANNING` | `SPAWN_PHASE_PLANNER`, `SPAWN_RESEARCH_AGENT` |
+| `PLANNING` | `SPAWN_PHASE_PLANNER`, `SPAWN_RESEARCH_AGENT`, `SPAWN_RESEARCH_AGENTS` |
 | `REVIEWING_PLAN` | `SPAWN_PLAN_REVIEWER`, `SEAL_PHASE` |
 | `EXECUTING` | `REPORT_PHASE_PLAN`, `SPAWN_EXECUTOR`, `RUN_EVIDENCE`, `REVERT_CANDIDATE` |
 | `VALIDATING` | `RUN_VALIDATION` |
@@ -231,6 +231,7 @@ Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/sc
 | `INITIALIZE_BASELINE` | none |
 | `SPAWN_PHASE_PLANNER` | `mode`, `phase`, `source` |
 | `SPAWN_RESEARCH_AGENT` | `attempt`, `blocker` |
+| `SPAWN_RESEARCH_AGENTS` | `attempt`, `blockers` |
 | `SPAWN_PLAN_REVIEWER` | `phase`, `source` |
 | `SEAL_PHASE` | `phase`, `source` |
 | `REPORT_PHASE_PLAN` | `phase`, `source` |
@@ -392,8 +393,8 @@ Before dispatch, retry, audit, validation, and commit, rerun with `--require-sea
 
 Follow this table mechanically. When more than one row matches an input, the most specific matching row wins:
 a row whose Input names a `depth_profile`, a `work_mode`, a `run_modes` value, an `autonomy` value,
-a reported `MATERIAL_CHANGE`, a leaf `risk`, or the phase's finality (a `next_phase` that is
-`null`) is a
+a reported `MATERIAL_CHANGE`, a leaf `risk`, the phase's finality (a `next_phase` that is
+`null`), or more than one returned `repo_fact` blocker is a
 specialisation of
 the unconditional row with the same input subject, and each such row is placed directly above the
 row it specialises.
@@ -430,6 +431,7 @@ the current action's attempt count.
 | workspace/control validation fail, other than a phase- or overall-acceptance failure whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | revert any unaccepted candidate | persist validation evidence, then `BLOCKED` |
 | `capture`, `check`, or `restore` exits 2 (`ERROR`) | revert any unaccepted candidate; when the failing command is `restore` itself, retain what is on disk and record the restoration as incomplete | persist the guard error output, then `BLOCKED`; `NEXT_ACTION: none` |
 | planner `record-gap` | none | persist invalid-record evidence, then `BLOCKED` |
+| planner `blocked/repo_fact` with more than one `repo_fact` blocker | none | require one returned versioned blocker artifact per question; `PLANNING`; `SPAWN_RESEARCH_AGENTS blockers=<comma-separated paths> attempt=1` |
 | planner `blocked/repo_fact` | none | require returned `BLOCKER_PATH`; `PLANNING`; `SPAWN_RESEARCH_AGENT blocker=<path> attempt=1` |
 | planner `blocked/product|authority` | none | persist blocker, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | plan review `ship` | none | `REVIEWING_PLAN`; `SEAL_PHASE phase=N source=<PHASE_CONTROL>` |
@@ -484,6 +486,9 @@ the current action's attempt count.
 | curator `reconciled`, final phase | none | interpret the recorded overall-acceptance result of `RUN_FINAL_GATE` by the overall-acceptance rows below, exactly as if `RUN_OVERALL_ACCEPTANCE` had just returned it |
 | curator `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<curation review>` |
 | curator `human-decision` | accepted commits remain | persist blocker, then human gate |
+| a research fan-out report arrives while another fan-out blocker still lacks a persisted report | none | persist the report; a `not-found` retries only that blocker (`SPAWN_RESEARCH_AGENT blocker=<path> attempt=2`, next recorded tier); take no other routing action until every fan-out blocker holds a final report or one exhausts its ladder |
+| research fan-out joined, every blocker `evidence` | none | `PLANNING`; one fresh planner `mode=repair source=<comma-separated blocker paths>` |
+| research fan-out joined, any blocker `authority` | none | persist that blocker, then human gate; gathered evidence artifacts stay on disk for the eventual repair planner |
 | research `evidence` | none | `PLANNING`; fresh planner `mode=repair source=<evidence path>` |
 | research first `not-found` | none | fresh research agent at next tier, attempt 2 |
 | research second `not-found` | none | `BLOCKED` |
@@ -503,7 +508,8 @@ that fired, never two sequential waits; its recorded resume action is the action
 perform at that event if no wait rule existed, that is the unconditional row for that event; and one
 human answer clears every listed reason.
 
-`RUN_FINAL_GATE` is the final phase's close gate and, today, the run's only concurrent action. Its
+`RUN_FINAL_GATE` is the final phase's close gate and one of the run's two concurrent actions —
+the other is the `SPAWN_RESEARCH_AGENTS` fan-out below. Its
 log and result files are keyed to the gate's phase-control revision: `<gate>` below is the active
 phase control's filename stem (such as `phase-2` or `phase-2-r3`), so a repaired phase's new
 revision opens a fresh gate whose files cannot be satisfied by a discarded or failed gate's
@@ -546,6 +552,20 @@ product commands before the curator's verdict
 — or before an `autonomy: interactive` change checkpoint is answered — is not a product action:
 the commands were sealed at plan review, they validate rather than build, and any verdict or human
 answer that changes the plan discards their output.
+
+`SPAWN_RESEARCH_AGENTS` is the planning gate's fan-out. When a planner's report returns more than
+one `repo_fact` blocker — it writes one versioned `blockers/` artifact per question — the harness
+spawns one fresh research agent per blocker concurrently, each under the research-agent template
+with its own 20-minute non-executor bound, its own recorded research-ladder attempts, and its own
+`attempts/research-<blocker-stem>-a<N>.agent` and `.report` artifacts persisted per this section's
+spawn bookkeeping. `ACTIVE_AGENT` records `research fan-out pending`; the per-agent truth lives
+only in the `attempts/` artifacts, never in chat. The join is reached when every fan-out blocker
+holds a final persisted report — `evidence`, `authority`, or a second `not-found` after its tier
+retry — and any blocker exhausting its ladder blocks the run exactly as a lone one does. At an
+all-`evidence` join, one fresh repair planner receives every blocker path as its comma-separated
+`source`, so N questions cost one planner round instead of N. On resume the fan-out is
+re-performed whole: re-dispatch exactly the blockers that lack a persisted report, never one that
+has one.
 
 The `autonomy: interactive` run-plan wait is keyed on the `REPORT_PHASE_PLAN` event and not on the
 phase: every sealed phase-control revision passes through that event, so a phase whose plan is

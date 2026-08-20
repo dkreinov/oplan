@@ -201,6 +201,8 @@ def main() -> int:
         "recorded data, never a failure and never retried",
         "Never hand-write `phase-state.md`.",
         "<python> <skill-dir>/scripts/set_state.py",
+        "`SPAWN_RESEARCH_AGENTS` is the planning gate's fan-out.",
+        "one planner round instead of N",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)

@@ -67,7 +67,10 @@ what an earlier agent probably meant.
 9. Update `plan.md` with the detailed current tree and honest later-phase sketches.
 10. For any returned `repo_fact`, `product`, or `authority` blocker, write its exact question,
     classification, evidence already checked, recommended next owner, and resume action to a
-    versioned `blockers/` artifact. Return its path; never leave a blocker only in the report.
+    versioned `blockers/` artifact — one artifact per question, never a digest. Return every path;
+    several `repo_fact` blockers are researched in parallel, one agent per blocker, and cost one
+    repair-planner round in total, so return all of your open repository questions at once
+    instead of one per round. Never leave a blocker only in the report.
 11. Keep planning proportional: Planning effort must not exceed the expected execution effort.
     When it would, plan coarser leaves and let the mechanical gates carry more weight; do not
     prototype beyond what a genuinely undecided design choice needs.
@@ -148,7 +151,7 @@ RISKS: <=3 lines
 BLOCKERS:
   - [repo_fact|product|authority] <question> — expected record/source
   - none
-BLOCKER_PATH: <versioned blockers/ path or none>
+BLOCKER_PATH: <versioned blockers/ path, comma-separated when several, or none>
 RECORD_GAPS: <=3 lines or none
 PLAIN_PLAN:
   - <leaf: what happens — why>
