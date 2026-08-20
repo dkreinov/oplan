@@ -54,7 +54,11 @@ what an earlier agent probably meant.
    artifacts as an evidence control, not a leaf: `kind: evidence` with a `run` command list and a
    wall time, no packet (schema in `references/state-and-records.md`). The harness executes it in
    queue order and journals its output verbatim at no executor, review, audit, or commit cost; its
-   commands must write nothing — a step that writes a product file is a leaf.
+   commands must write nothing — a step that writes a product file is a leaf. Before finalizing
+   a leaf, check its ordered edits against every gate that pins them — its own frozen validation,
+   the held-out acceptance instruments, and existing tests asserting exact content or key sets; a
+   packet that orders an edit its own gate forbids is an impossible leaf and will stop its
+   executor.
 8. Write a reviewed phase control `control/phase-{{N}}[-rK].json` containing the ordered active
    leaf-control queue, held-out phase and overall acceptance commands, next-phase identity (or
    `null`), and plan-review artifact path. Write any overall-acceptance command that reads the run
@@ -73,6 +77,11 @@ what an earlier agent probably meant.
     as `none`: leaf counts, leaf boundaries, step IDs, wall times, wording, file lists, validation
     commands, risk marks, worker tiers, review rounds, and retries.
     If this wording and `references/state-and-records.md` section 5 ever differ, that reference governs.
+
+A frozen artifact is append-never once a gate arms on it: when a held-out instrument pins any
+property of a file — content, key set, ordering, or commit timestamps — no later leaf may edit
+that file, however harmless the edit looks, because a revert is itself a post-gate change that can
+never be undone. Corrections go to an errata file beside the frozen artifact, never into it.
 
 When `MODE: repair`, directly address every finding in `SOURCE`. A repair of a packet that was
 already sealed must use a new step/version ID in the exact form `<phase>.<leaf>-rK` (for example

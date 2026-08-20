@@ -226,7 +226,10 @@ The phase plan is a tree, not a forced flat list. Recursively decompose until ev
 Later phases remain sketches until earlier evidence exists. A planner may change a sketch when
 the journal proves its assumptions wrong, but may not silently change approved intent.
 
-Send the written phase artifacts—not a main-thread summary—to a fresh plan reviewer. A phase is
+Send the written phase artifacts—not a main-thread summary—to a fresh plan reviewer.
+Dispatch every reviewer with its template verbatim and nothing more: never add open-ended
+instructions such as "try hard to construct a failing implementation" —
+the template's bounded attack list is the review's stopping condition, and exhaustion is not. A phase is
 dispatchable only when the review artifact says `VERDICT: ship`, proposed decisions are promoted,
 and `validate_run.py <workspace> --phase N --seal` succeeds; that command performs the mechanical
 promotion and writes the reviewed hashes. A `fix-first` transition names the

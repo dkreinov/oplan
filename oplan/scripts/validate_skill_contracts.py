@@ -100,6 +100,7 @@ def main() -> int:
         "the run-plan approval gate",
         "intake.md",
         "under `RUN_FINAL_GATE`: the curator's verdict is interpreted first",
+        "the template's bounded attack list is the review's stopping condition, and exhaustion is not.",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -243,6 +244,11 @@ def main() -> int:
         "phase-planner.md missing phrase: kind: evidence",
         errors,
     )
+    require(
+        "A frozen artifact is append-never once a gate arms on it" in phase_planner,
+        "phase-planner.md missing phrase: A frozen artifact is append-never once a gate arms on it",
+        errors,
+    )
 
     phase_curator = (ROOT / "templates/phase-curator.md").read_text(encoding="utf-8")
     require(
@@ -259,6 +265,7 @@ def main() -> int:
     for phrase in (
         "no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.",
         "a workspace with no `intake.md` is itself an `intent` finding",
+        "an impossible leaf",
     ):
         require(phrase in plan_reviewer, f"plan-reviewer.md missing phrase: {phrase}", errors)
 

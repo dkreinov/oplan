@@ -36,6 +36,13 @@ Attack these failure classes:
     over-scoping into what the human recorded as indifference is an `intent` finding, not a note.
     The pre-run scope grill is not optional, so
     a workspace with no `intake.md` is itself an `intent` finding.
+12. a packet orders an edit that a sealed gate pins — its own frozen validation, a held-out phase
+    or overall acceptance instrument, or an existing test asserts the exact content, key set, or
+    property the packet orders changed. That is an impossible leaf: its executor will stop, and
+    the repair cycle costs more than this check. An edit to an artifact a held-out gate has
+    already armed on (append-never, see the planner packet) is the same finding, even when the
+    edit looks harmless — ask not only "can this change a number?" but "can this change any
+    property the gate pins, such as ordering or timestamps?"
 
 ## Materiality
 

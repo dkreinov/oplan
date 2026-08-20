@@ -270,7 +270,11 @@ Supersedes: <D-### or none>
 
 The planner writes new decisions as `proposed` before plan review. On `ship`, the harness runs the
 documented `--seal` command, which mechanically promotes the phase's referenced proposals to
-`approved` and updates `DECISIONS_IN_FORCE`; it does not reinterpret them. Never silently edit an approved decision.
+`approved` and updates `DECISIONS_IN_FORCE`; it does not reinterpret them. That promotion covers
+only decisions referenced by a sealed leaf control: a decision no leaf references — a
+phase-structure decision, for example — stays `proposed` forever and can never legally enter
+`DECISIONS_IN_FORCE`, so the planner must reference every decision from at least one leaf control
+or record phase-shape reasoning in `plan.md` prose instead of a `D-###`. Never silently edit an approved decision.
 Add an amendment/successor and replan every unaccepted descendant that depends on it.
 
 ## 4. Plan, control records, and seals
