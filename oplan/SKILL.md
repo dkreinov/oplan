@@ -292,6 +292,12 @@ METRICS: retries=N, validation_first_try=yes|no
 scope expansion. A worker may flag a needed core change, but only a future reviewed packet may
 perform it.
 
+A queue may also hold `kind: evidence` steps — read-only lookups against existing artifacts, such
+as a grep over a run log or a metrics read. The harness runs their sealed commands itself, keeps
+the full log, journals the result verbatim, and moves on: no packet, no executor, no audit, no
+commit. A verification that writes nothing must never pay leaf ceremony; anything that writes a
+product file is a leaf.
+
 If the worker stops with a question, verify and revert every write-set change from its control
 record before replanning. Do not answer in the harness. Return to `SPAWN_PHASE_PLANNER` with the
 question artifact as `SOURCE`. Use the grill gate only if the new planner classifies it as

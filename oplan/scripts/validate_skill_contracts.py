@@ -194,6 +194,8 @@ def main() -> int:
         "runs only at the join, after the curator has returned",
         "the result file is the completion marker, and a log without its result file is incomplete.",
         "keyed to the gate's phase-control revision",
+        "A queue may also contain **evidence controls**",
+        "recorded data, never a failure and never retried",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -234,6 +236,11 @@ def main() -> int:
     require(
         "MATERIAL_CHANGE:" in phase_planner,
         "phase-planner.md missing phrase: MATERIAL_CHANGE:",
+        errors,
+    )
+    require(
+        "kind: evidence" in phase_planner,
+        "phase-planner.md missing phrase: kind: evidence",
         errors,
     )
 

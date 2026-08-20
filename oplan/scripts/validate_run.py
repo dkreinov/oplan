@@ -28,7 +28,7 @@ ACTIONS_BY_STATE = {
     "INITIALIZING": {"INITIALIZE_BASELINE"},
     "PLANNING": {"SPAWN_PHASE_PLANNER", "SPAWN_RESEARCH_AGENT"},
     "REVIEWING_PLAN": {"SPAWN_PLAN_REVIEWER", "SEAL_PHASE"},
-    "EXECUTING": {"REPORT_PHASE_PLAN", "SPAWN_EXECUTOR", "REVERT_CANDIDATE"},
+    "EXECUTING": {"REPORT_PHASE_PLAN", "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE"},
     "VALIDATING": {"RUN_VALIDATION"},
     "REVIEWING_RESULT": {
         "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "SPAWN_SYSTEM_REVIEWER", "ACCEPT_LEAF",
@@ -49,6 +49,7 @@ ACTION_REQUIRED_KEYS = {
     "SEAL_PHASE": {"phase", "source"},
     "REPORT_PHASE_PLAN": {"phase", "source"},
     "SPAWN_EXECUTOR": {"control"},
+    "RUN_EVIDENCE": {"control"},
     "REVERT_CANDIDATE": {"control"},
     "RUN_VALIDATION": {"control", "attempt"},
     "SPAWN_SPEC_AUDITOR": {"control"},
@@ -78,6 +79,7 @@ PACKET_MARKERS = (
 )
 CONTROL_KEYS = {"step", "phase", "packet", "write_set", "validation", "risk", "decisions", "wall_time_minutes"}
 OPTIONAL_CONTROL_KEYS = {"kind"}
+EVIDENCE_CONTROL_KEYS = {"step", "phase", "kind", "run", "wall_time_minutes"}
 PHASE_CONTROL_KEYS = {
     "phase", "revision", "name", "queue", "acceptance", "overall_acceptance", "next_phase",
     "plan_review",
@@ -163,8 +165,10 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def expected_seal(workspace: Path, control_path: Path, control: dict[str, object]) -> str:
-    packet_path = workspace / str(control["packet"])
     control_rel = control_path.relative_to(workspace).as_posix()
+    if control.get("kind") == "evidence":
+        return f"{sha256(control_path)}  {control_rel}\n"
+    packet_path = workspace / str(control["packet"])
     packet_rel = packet_path.relative_to(workspace).as_posix()
     return f"{sha256(packet_path)}  {packet_rel}\n{sha256(control_path)}  {control_rel}\n"
 
@@ -416,8 +420,12 @@ def main() -> int:
             if not isinstance(control, dict):
                 errors.append(f"{control_path.name}: control must be a JSON object")
                 continue
-            missing = CONTROL_KEYS - control.keys()
-            extra = control.keys() - CONTROL_KEYS - OPTIONAL_CONTROL_KEYS
+            if control.get("kind") == "evidence":
+                missing = EVIDENCE_CONTROL_KEYS - control.keys()
+                extra = control.keys() - EVIDENCE_CONTROL_KEYS
+            else:
+                missing = CONTROL_KEYS - control.keys()
+                extra = control.keys() - CONTROL_KEYS - OPTIONAL_CONTROL_KEYS
             if missing or extra:
                 errors.append(f"{control_path.name}: control keys missing={sorted(missing)} extra={sorted(extra)}")
                 continue
@@ -529,8 +537,8 @@ def main() -> int:
         path.relative_to(workspace).as_posix() for path, _control in controls
     } if args.phase is not None else set()
     if args.phase is not None and action_verb in {
-        "SPAWN_EXECUTOR", "REVERT_CANDIDATE", "RUN_VALIDATION", "SPAWN_SPEC_AUDITOR",
-        "COMPLETE_EVIDENCE", "ACCEPT_LEAF"
+        "SPAWN_EXECUTOR", "RUN_EVIDENCE", "REVERT_CANDIDATE", "RUN_VALIDATION",
+        "SPAWN_SPEC_AUDITOR", "COMPLETE_EVIDENCE", "ACCEPT_LEAF"
     }:
         if action_values.get("control") not in active_queue:
             errors.append(f"phase-state.md: {action_verb} control is not in active phase queue")
@@ -549,6 +557,25 @@ def main() -> int:
             errors.append(f"{label}: phase does not match step")
         if args.phase is not None and control.get("phase") != args.phase:
             errors.append(f"{label}: active queue control is not in phase {args.phase}")
+        if control.get("kind") == "evidence":
+            run_commands = control.get("run")
+            if not isinstance(run_commands, list) or not run_commands or not all(
+                isinstance(command, str) and command.strip() for command in run_commands
+            ):
+                errors.append(f"{label}: run must contain nonempty command strings")
+            wall_time = control.get("wall_time_minutes")
+            if isinstance(wall_time, bool) or not isinstance(wall_time, int) or wall_time < 1:
+                errors.append(f"{label}: wall_time_minutes must be a positive integer")
+            if valid_step:
+                seal_path = workspace / "seals" / f"{step}.sha256"
+                if seal_path.exists() or args.require_sealed:
+                    if not seal_path.is_file():
+                        errors.append(f"{label}: missing seal {seal_path.relative_to(workspace)}")
+                    else:
+                        expected = expected_seal(workspace, control_path, control)
+                        if seal_path.read_text(encoding="utf-8") != expected:
+                            errors.append(f"{label}: seal mismatch; packet/control changed after review")
+            continue
         packet_rel = control.get("packet")
         if not isinstance(packet_rel, str) or not safe_relative(packet_rel):
             errors.append(f"{label}: packet must be a safe relative path")

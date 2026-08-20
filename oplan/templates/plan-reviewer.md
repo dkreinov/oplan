@@ -25,8 +25,9 @@ Attack these failure classes:
 7. phase acceptance does not test the phase goal;
 8. the plan grows duplicate concepts, megafiles, or unnecessary abstractions;
 9. the plan changes approved intent without a recorded human decision.
-10. a packet and its control record disagree, a write set overlaps a protected baseline path, or
-    the phase control queue/order/held-out acceptance does not match the reviewed plan.
+10. a packet and its control record disagree, a write set overlaps a protected baseline path,
+    the phase control queue/order/held-out acceptance does not match the reviewed plan, or an
+    evidence control's `run` commands could write a product file or a workspace record.
 11. a phase or leaf spends effort on something the recorded intent already excludes:
     no phase or leaf may spend effort on anything `intake.md` records as a non-goal or a don't-care.
     Read `{{workspace}}/intake.md`, check every phase and every leaf against its recorded `C-#`

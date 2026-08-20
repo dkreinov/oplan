@@ -50,7 +50,11 @@ what an earlier agent probably meant.
    cancellation boundary, not a performance target. Scope a leaf's frozen validation to the
    behavior its write set can change — the narrowest command that still proves the leaf — because
    it runs at least twice per attempt; the project-wide suite belongs in phase acceptance, which
-   runs it unconditionally once per phase.
+   runs it unconditionally once per phase. Plan a read-only verification against existing
+   artifacts as an evidence control, not a leaf: `kind: evidence` with a `run` command list and a
+   wall time, no packet (schema in `references/state-and-records.md`). The harness executes it in
+   queue order and journals its output verbatim at no executor, review, audit, or commit cost; its
+   commands must write nothing — a step that writes a product file is a leaf.
 8. Write a reviewed phase control `control/phase-{{N}}[-rK].json` containing the ordered active
    leaf-control queue, held-out phase and overall acceptance commands, next-phase identity (or
    `null`), and plan-review artifact path. Write any overall-acceptance command that reads the run

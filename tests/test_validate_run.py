@@ -628,6 +628,108 @@ class ValidateRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("intake.md: status must appear exactly once", result.stdout)
 
+    def add_evidence_control(self, workspace: Path) -> Path:
+        control_path = workspace / "control/1.2.json"
+        control_path.write_text(
+            json.dumps(
+                {
+                    "step": "1.2",
+                    "phase": 1,
+                    "kind": "evidence",
+                    "run": ["grep -c payload output.txt"],
+                    "wall_time_minutes": 5,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        phase_control = workspace / "control/phase-1.json"
+        data = json.loads(phase_control.read_text(encoding="utf-8"))
+        data["queue"] = ["control/1.1.json", "control/1.2.json"]
+        phase_control.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return control_path
+
+    def test_evidence_control_validates_without_packet(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("oplan run validation: PASS (2 controls", result.stdout)
+
+    def test_evidence_control_rejects_empty_run(self) -> None:
+        workspace = self.make_workspace()
+        control_path = self.add_evidence_control(workspace)
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["run"] = []
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("run must contain nonempty command strings", result.stdout)
+
+    def test_evidence_control_rejects_leaf_keys(self) -> None:
+        workspace = self.make_workspace()
+        control_path = self.add_evidence_control(workspace)
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["write_set"] = ["output.txt"]
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("extra=['write_set']", result.stdout)
+
+    def test_run_evidence_is_legal_in_executing(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: EXECUTING")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_EVIDENCE control=control/1.2.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_run_evidence_control_must_be_in_queue(self) -> None:
+        workspace = self.make_workspace()
+        self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8")
+            .replace("STATE: REVIEWING_PLAN", "STATE: EXECUTING")
+            .replace(
+                "NEXT_ACTION: SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "NEXT_ACTION: RUN_EVIDENCE control=control/9.9.json",
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("control is not in active phase queue", result.stdout)
+
+    def test_evidence_seal_detects_control_mutation(self) -> None:
+        workspace = self.make_workspace()
+        control_path = self.add_evidence_control(workspace)
+        state = workspace / "phase-state.md"
+        state.write_text(
+            state.read_text(encoding="utf-8").replace(
+                "SPAWN_PLAN_REVIEWER phase=1 source=control/phase-1.json",
+                "SEAL_PHASE phase=1 source=control/phase-1.json",
+            ),
+            encoding="utf-8",
+        )
+        sealed = self.run_validator(workspace, "--seal")
+        self.assertEqual(sealed.returncode, 0, sealed.stdout + sealed.stderr)
+        control = json.loads(control_path.read_text(encoding="utf-8"))
+        control["run"] = ["grep -c tampered output.txt"]
+        control_path.write_text(json.dumps(control, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace, "--require-sealed")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("seal mismatch", result.stdout)
+
     def test_run_final_gate_is_legal_in_closing_phase(self) -> None:
         workspace = self.make_workspace()
         state = workspace / "phase-state.md"

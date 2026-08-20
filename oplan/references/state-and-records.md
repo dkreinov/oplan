@@ -206,7 +206,7 @@ Legal `NEXT_ACTION` verbs by state:
 | `INITIALIZING` | `INITIALIZE_BASELINE` |
 | `PLANNING` | `SPAWN_PHASE_PLANNER`, `SPAWN_RESEARCH_AGENT` |
 | `REVIEWING_PLAN` | `SPAWN_PLAN_REVIEWER`, `SEAL_PHASE` |
-| `EXECUTING` | `REPORT_PHASE_PLAN`, `SPAWN_EXECUTOR`, `REVERT_CANDIDATE` |
+| `EXECUTING` | `REPORT_PHASE_PLAN`, `SPAWN_EXECUTOR`, `RUN_EVIDENCE`, `REVERT_CANDIDATE` |
 | `VALIDATING` | `RUN_VALIDATION` |
 | `REVIEWING_RESULT` | `SPAWN_SPEC_AUDITOR`, `COMPLETE_EVIDENCE`, `SPAWN_SYSTEM_REVIEWER`, `ACCEPT_LEAF` |
 | `CLOSING_PHASE` | `RUN_PHASE_ACCEPTANCE`, `RUN_OVERALL_ACCEPTANCE`, `RUN_FINAL_GATE`, `SPAWN_SYSTEM_REVIEWER`, `SPAWN_PHASE_CURATOR`, `CLOSE_PHASE` |
@@ -235,6 +235,7 @@ Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/sc
 | `SEAL_PHASE` | `phase`, `source` |
 | `REPORT_PHASE_PLAN` | `phase`, `source` |
 | `SPAWN_EXECUTOR` | `control` |
+| `RUN_EVIDENCE` | `control` |
 | `REVERT_CANDIDATE` | `control` |
 | `RUN_VALIDATION` | `attempt`, `control` |
 | `SPAWN_SPEC_AUDITOR` | `control` |
@@ -296,6 +297,27 @@ For every packet, the planner also writes `control/<step-id>.json`:
 A leaf control may also carry one optional `kind: measurement|engineering` field; it is absent by
 default, an absent `kind` means `engineering`, and only `measurement` changes routing (section 5).
 `validate_run.py` rejects any other value.
+
+A queue may also contain **evidence controls** — read-only lookups against existing artifacts that
+carry none of the leaf ceremony:
+
+```json
+{
+  "step": "3.3",
+  "phase": 3,
+  "kind": "evidence",
+  "run": ["grep lr_schedule runs/qat_probe_leg1_a1.log"],
+  "wall_time_minutes": 5
+}
+```
+
+An evidence control has exactly these keys — no packet, no write set, no validation, no risk, no
+decisions — and its seal covers the control file alone. Its commands run from the Git worktree
+root and must be read-only against product files and workspace records: anything that writes a
+product file is a leaf, and the plan review checks evidence commands for this along with the rest
+of the phase control. The harness executes evidence steps itself in queue order (section 5); no
+executor, spec audit, guard capture, or commit is involved, and evidence steps never enter
+`ACCEPTED_THIS_PHASE` or the accepted-state manifest.
 
 `wall_time_minutes` is a parent-enforced cancellation boundary, never a promise the worker must
 estimate or meet; the packet tells the worker not to rush or self-abort. When an executor is still
@@ -397,6 +419,8 @@ the current action's attempt count.
 | seal success | immutable reviewed artifacts | `EXECUTING`; `REPORT_PHASE_PLAN phase=N source=<PHASE_CONTROL>` |
 | phase-plan report appended/printed, under `autonomy: interactive` | none | persist a checkpoint blocker at `blockers/CP-phase-N-plan-rK.md` whose `Reasons:` field lists every wait rule that fired at this event and whose recorded resume action is `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>`; then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>`; if another wait rule fires at this same event, add its reason to this one blocker instead of persisting a second |
 | phase-plan report appended/printed | none | `EXECUTING`; `SPAWN_EXECUTOR control=<first queued control>` |
+| the control a row dispatches (first queued or next queued) carries `kind: evidence` | none | that row's dispatch action is `RUN_EVIDENCE control=<path>` in place of `SPAWN_EXECUTOR control=<path>`; everything else in the row is unchanged |
+| `RUN_EVIDENCE` completed | nothing to revert — an evidence step declares no writes | write full output to `logs/<step>.log`; journal the commands, exit statuses, and a short verbatim excerpt; an exit status is recorded data, never a failure and never retried; a step still running at `wall_time_minutes` is cancelled and the timeout journaled as its recorded outcome; then advance exactly like the `ACCEPT_LEAF` succeeded rows including their `run_modes` specialisations, with no `ACCEPTED_THIS_PHASE` entry and no manifest write |
 | seal failure/mismatch | revert any unaccepted candidate | `BLOCKED` |
 | third unsuccessful plan-review round under `depth_profile: standard` | none | persist a checkpoint blocker with concrete options, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | plan review `fix-first` | none | `PLANNING`; fresh planner `mode=repair source=<full review path>` |
