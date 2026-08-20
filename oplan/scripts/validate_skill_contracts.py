@@ -101,6 +101,7 @@ def main() -> int:
         "intake.md",
         "under `RUN_FINAL_GATE`: the curator's verdict is interpreted first",
         "the template's bounded attack list is the review's stopping condition, and exhaustion is not.",
+        "only through `<skill-dir>/scripts/set_state.py`, never by hand",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -142,6 +143,7 @@ def main() -> int:
         "references/model-policy.md",
         "scripts/validate_run.py",
         "scripts/worktree_guard.py",
+        "scripts/set_state.py",
     ]
     for relative in required_files:
         require((ROOT / relative).is_file(), f"required resource missing: {relative}", errors)
@@ -197,6 +199,8 @@ def main() -> int:
         "keyed to the gate's phase-control revision",
         "A queue may also contain **evidence controls**",
         "recorded data, never a failure and never retried",
+        "Never hand-write `phase-state.md`.",
+        "<python> <skill-dir>/scripts/set_state.py",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)

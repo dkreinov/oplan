@@ -250,6 +250,14 @@ Required action arguments (normative source: `ACTION_REQUIRED_KEYS` in `oplan/sc
 | `ASK_HUMAN` | `blocker` |
 | `none` | none |
 
+Never hand-write `phase-state.md`. Update it with
+
+`<python> <skill-dir>/scripts/set_state.py <workspace> KEY=VALUE [KEY=VALUE ...]`
+
+which merges the updates into the current record, refuses to write anything on an illegal state,
+verb, argument set, or terminal-reason mismatch, and writes atomically in canonical key order. Run
+`validate_run.py` after every state transition, not only after artifact-writing roles.
+
 Write the next state before printing a human report. The control record, never chat history, tells
 a replacement harness what to do.
 

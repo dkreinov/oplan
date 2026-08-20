@@ -722,7 +722,10 @@ def main() -> int:
         else:
             review = workspace / str(phase_control.get("plan_review"))
             if not review.is_file() or not re.search(r"^VERDICT:\s*ship\s*$", review.read_text(encoding="utf-8"), re.MULTILINE):
-                errors.append(f"cannot seal phase {args.phase}: active plan review VERDICT is not ship")
+                errors.append(
+                    f"cannot seal phase {args.phase}: active plan review VERDICT is not ship; "
+                    "the review file must end with the exact line 'VERDICT: ship'"
+                )
 
     guide = workspace / "field-guide/index.md"
     if guide.is_file():

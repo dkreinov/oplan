@@ -111,6 +111,8 @@ Copy the user's request verbatim to `request.md`; this is input capture, not pla
 `<python> <skill-dir>/scripts/validate_run.py <workspace>` after initialization, on resume, and
 with `--phase N` after a phase planner writes packets.
 
+Update `phase-state.md` only through `<skill-dir>/scripts/set_state.py`, never by hand; it refuses
+an illegal transition before writing.
 Resolve `<python>` once for the current host: use `python3` when that command exists, otherwise use
 `python`. Write the resolved executable — never the placeholder — into frozen validation, controls,
 and acceptance commands.

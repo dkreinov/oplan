@@ -12,6 +12,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "oplan/scripts/validate_run.py"
 GUARD = REPO / "oplan/scripts/worktree_guard.py"
+SET_STATE = REPO / "oplan/scripts/set_state.py"
 
 
 class ValidateRunTests(unittest.TestCase):
@@ -830,6 +831,57 @@ class ValidateRunTests(unittest.TestCase):
         result = self.run_validator(workspace)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("is illegal for STATE", result.stdout)
+
+    def run_set_state(self, workspace: Path, *updates: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SET_STATE), str(workspace), *updates],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_set_state_writes_legal_update(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(
+            workspace, "NEXT_ACTION=SEAL_PHASE phase=1 source=control/phase-1.json"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        content = (workspace / "phase-state.md").read_text(encoding="utf-8")
+        self.assertIn("NEXT_ACTION: SEAL_PHASE phase=1 source=control/phase-1.json", content)
+        check = self.run_validator(workspace)
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+    def test_set_state_refuses_illegal_verb_and_leaves_file_unchanged(self) -> None:
+        workspace = self.make_workspace()
+        before = (workspace / "phase-state.md").read_text(encoding="utf-8")
+        result = self.run_set_state(
+            workspace, "NEXT_ACTION=SPAWN_EXECUTOR control=control/1.1.json"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("illegal for STATE", result.stdout)
+        self.assertEqual((workspace / "phase-state.md").read_text(encoding="utf-8"), before)
+
+    def test_set_state_refuses_missing_action_argument(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "NEXT_ACTION=SPAWN_PLAN_REVIEWER phase=1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing_args=['source']", result.stdout)
+
+    def test_set_state_refuses_unknown_key(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "BOGUS=1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unknown key BOGUS", result.stdout)
+
+    def test_set_state_terminal_state_requires_reason(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_set_state(workspace, "STATE=BLOCKED", "NEXT_ACTION=none")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("terminal state requires TERMINAL_REASON", result.stdout)
+        good = self.run_set_state(
+            workspace, "STATE=BLOCKED", "NEXT_ACTION=none", "TERMINAL_REASON=top-tier failure"
+        )
+        self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
 
     def test_missing_required_file_reports_instead_of_crashing(self) -> None:
         workspace = self.make_workspace()
