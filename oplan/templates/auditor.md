@@ -42,7 +42,9 @@ a concrete trigger scenario reachable in this run's intended use, and (b) why th
 cost exceeds the cost of one fix cycle. Every other finding goes under `NOTES` as a non-blocking
 recorded note. Style, completeness, and hypothetical findings never block on their own.
 
-Write the full result to `{{workspace}}/reviews/{{step-id}}-spec.md` and return at most 23 lines:
+`FINDING_CLASS` is `bounded-mechanical` only when the fix is fully determined by the already-sealed packet plus the finding text, involves no design choice, and lands entirely inside one named sealed leaf control's write set; it is `none` whenever the verdict is not blocking.
+
+Write the full result to `{{workspace}}/reviews/{{step-id}}-spec.md` and return at most 26 lines:
 
 ```text
 VERDICT: match | mismatch
@@ -50,6 +52,9 @@ FINDINGS:
   - [missing|extra|contract|boundary|decision] <file>:<line> — <issue>
   - none
 NOTES: <=3 non-blocking observations or none
+FINDING_CLASS: bounded-mechanical | design-level | none
+FIX_CONTROL: <control/<step-id>.json this fix lands entirely inside, or none>
+FIX_INSTRUCTION: <=5 lines naming the exact mechanical edit, or none
 CONFIDENCE: high | low — <missing evidence, if any>
 PLAIN: <=2 lines
 ```

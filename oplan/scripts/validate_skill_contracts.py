@@ -102,6 +102,7 @@ def main() -> int:
         "under `RUN_FINAL_GATE`: the curator's verdict is interpreted first",
         "the template's bounded attack list is the review's stopping condition, and exhaustion is not.",
         "only through `<skill-dir>/scripts/set_state.py`, never by hand",
+        "the cheap repair lane",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -205,6 +206,8 @@ def main() -> int:
         "one planner round instead of N",
         "`SPAWN_LEAF_REVIEWERS` is the high-risk leaf's review pair",
         "exactly as if the two lenses had run serially",
+        "a blocking review whose every finding is `bounded-mechanical`",
+        "The cheap repair lane's round count is per scope",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -217,6 +220,7 @@ def main() -> int:
     materiality_phrases = [
         "a concrete trigger scenario reachable in this run's intended use",
         "NOTES:",
+        "FINDING_CLASS:",
     ]
     for relative in (
         "templates/plan-reviewer.md",

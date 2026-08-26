@@ -398,6 +398,7 @@ active phase control, not `plan.md`, tells the harness whether a next phase exis
   role once fresh with explicitly narrowed scope, and escalates a second overrun to the human gate.
 - A pre-acceptance system repair reverts the candidate before clean repair planning. A phase-gate
   repair retains accepted commits and creates a newly reviewed repair leaf.
+- A blocking system-review finding the reviewer classes `bounded-mechanical` takes the cheap repair lane: one fresh executor against the same sealed packet and control, then the same lens again, never a repair planner.
 - Top-tier failure, two malformed reports, two mismatches, seal mutation, or irreconcilable state
   sets `BLOCKED`.
 - User-requested scope change: record it as a design amendment, review it, and replan affected

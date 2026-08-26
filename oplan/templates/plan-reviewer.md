@@ -60,11 +60,13 @@ a concrete trigger scenario reachable in this run's intended use, and (b) why th
 cost exceeds the cost of one fix cycle. Every other finding goes under `NOTES` as a non-blocking
 recorded note. Style, completeness, and hypothetical findings never block on their own.
 
+`FINDING_CLASS` is `bounded-mechanical` only when the fix is fully determined by the already-sealed packet plus the finding text, involves no design choice, and lands entirely inside one named sealed leaf control's write set; it is `none` whenever the verdict is not blocking. Plan-review findings are always reported with `FINDING_CLASS: design-level`, because a plan finding has no sealed leaf control to fix against.
+
 Write the full review to the versioned path named by the active phase control (for example,
 `{{workspace}}/reviews/phase-{{N}}-plan-r1.md`). The review FILE itself must end with the same
 machine-readable verdict block shown below — the seal step mechanically greps the artifact for
 `VERDICT: ship`, so a verdict that exists only in your chat report blocks the run. Then return
-at most 28 lines:
+at most 31 lines:
 
 ```text
 VERDICT: ship | fix-first | human-decision
@@ -72,6 +74,9 @@ FINDINGS:
   - [decision|boundary|validation|order|decomposition|acceptance|structure|intent] <step> — <issue>
   - none
 NOTES: <=3 non-blocking observations or none
+FINDING_CLASS: bounded-mechanical | design-level | none
+FIX_CONTROL: <control/<step-id>.json this fix lands entirely inside, or none>
+FIX_INSTRUCTION: <=5 lines naming the exact mechanical edit, or none
 BLOCKERS:
   - [repo_fact|product|authority] <question>
   - none

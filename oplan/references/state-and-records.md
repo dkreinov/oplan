@@ -485,6 +485,7 @@ the current action's attempt count.
 | spec audit second `mismatch` | revert | `BLOCKED` |
 | high-risk leaf system `pass` | retain | `REVIEWING_RESULT`; `ACCEPT_LEAF control=<path>` |
 | `ACCEPT_LEAF` record or commit failure | retain the candidate; never revert and never re-invoke the executor | persist the record evidence, then `BLOCKED`; `NEXT_ACTION: none` |
+| high-risk leaf system `repair`, first bounded round, whose review artifact classes every blocking finding `bounded-mechanical` and names exactly one already-sealed leaf control, under `commit_mode: auto` | revert | `EXECUTING`; a blocking review whose every finding is `bounded-mechanical` dispatches one fresh executor against that named sealed packet and control with the review artifact path given as its fix source, and the existing validation, review, and `ACCEPT_LEAF` rows carry it from there, so the same lens runs again: never to a repair planner, never to a new phase-control revision, and never to a new seal; a second `repair` on the same step routes by the unconditional row below |
 | high-risk leaf system `repair` | revert | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | any review `human-decision` | revert unaccepted candidate | persist blocker, then human gate |
 | phase acceptance fail whose every reported failure is a workspace validation reporting a missing required `baseline.md` key | accepted commits remain | the harness appends the missing recorded line to each named workspace `baseline.md`, journals the append and its reason, and re-runs phase acceptance once; a second failure of that re-run is `PLANNING`; fresh planner `mode=repair source=<acceptance log>` |
@@ -495,6 +496,7 @@ the current action's attempt count.
 | all queued leaves accepted, under `run_modes: step-by-step` | accepted commits remain | persist a checkpoint blocker whose recorded resume action is `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>`, then `AWAITING_HUMAN_DECISION`; `ASK_HUMAN blocker=<path>` |
 | all queued leaves accepted | accepted commits remain | `CLOSING_PHASE`; `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>` |
 | phase acceptance pass | accepted commits remain | `CLOSING_PHASE`; `SPAWN_SYSTEM_REVIEWER scope=phase-N source=<acceptance review>` |
+| phase system `repair`, first bounded round, whose review artifact classes every blocking finding `bounded-mechanical` and names exactly one already-sealed leaf control whose `write_set` contains every path the fix touches, under `commit_mode: auto` | accepted commits remain | `EXECUTING`; one fresh executor against that named sealed packet and control with the review artifact path given as its fix source; the existing validation, review, and `ACCEPT_LEAF` rows carry it from there and re-commit that same write set, and `all queued leaves accepted` then re-runs `RUN_PHASE_ACCEPTANCE phase=N source=<PHASE_CONTROL>`; a second `repair` at the same phase gate routes by the unconditional row below |
 | phase system `repair` | accepted commits remain | `PLANNING`; fresh planner `mode=repair source=<system review>` |
 | phase system `human-decision` | accepted commits remain | persist blocker, then human gate |
 | phase system `pass`, final phase (`next_phase: null`) | none | `CLOSING_PHASE`; `RUN_FINAL_GATE phase=N source=<system review>` |
@@ -526,6 +528,11 @@ checkpoint — persist exactly one combined checkpoint blocker whose `Reasons:` 
 that fired, never two sequential waits; its recorded resume action is the action the run would
 perform at that event if no wait rule existed, that is the unconditional row for that event; and one
 human answer clears every listed reason.
+
+The cheap repair lane's round count is per scope — one leaf step, or one phase gate — and is
+derived from the immutable `reviews/` artifacts, never from memory. A reviewer that cannot name
+exactly one already-sealed leaf control whose write set contains every path its fix touches has
+by definition found a `design-level` finding, whatever it believes about the fix's size.
 
 `RUN_FINAL_GATE` is the final phase's close gate and one of the run's two concurrent actions —
 the other is the `SPAWN_RESEARCH_AGENTS` fan-out below. Its
