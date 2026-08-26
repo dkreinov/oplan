@@ -123,7 +123,10 @@ the next arm or the stop between leaves from the recorded results and records th
 when the recorded results satisfy the stopping rule; on that outcome record the stop as a new
 `D-###` with its evidence path and write NO new phase control and NO new plan review, because the
 harness takes the run straight to phase acceptance from that outcome. Engineering leaves inside an
-experiment run follow the depth profile normally.
+experiment run follow the depth profile normally. Make the first queued leaf of a measurement
+phase a short real smoke run of the actual pipeline, and write its kill criteria and its
+monitoring plan into `plan.md`. That smoke leaf is the phase's gate on the matrix, so do not
+spend planning effort proving the matrix on paper instead.
 
 Your own dispatch carries a wall-time bound. The harness cancels you at the bound and redispatches
 this role once with explicitly narrowed scope, so plan the cheapest sufficient tree and return

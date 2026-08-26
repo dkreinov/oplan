@@ -177,6 +177,14 @@ no plan review, and the planner returns `stop-experiment`, routed to the phase g
 not be empty, and a returned control re-opens a sealed review and re-dispatches an accepted leaf.
 Engineering leaves inside an experiment run follow the depth profile normally.
 
+Under `work_mode: experiment` the first queued leaf of a measurement phase is a short real smoke
+run of the actual pipeline, and that smoke leaf is the phase's gate on the matrix: its written
+kill criteria and its monitoring plan, both recorded in `plan.md` before the phase is sealed,
+replace review effort spent proving the matrix on paper. Detectability beats provability here —
+compute is cheap, and a wrong matrix caught by a real ten-minute run costs less than a reviewer
+proving it correct on paper for an hour. The smoke leaf is an ordinary engineering leaf that the
+existing section 5 rows already route, so this rule adds no transition row.
+
 ## 2. Control state
 
 The harness rewrites `phase-state.md` atomically before every external action. Keep it at most 30

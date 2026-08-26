@@ -103,6 +103,7 @@ def main() -> int:
         "the template's bounded attack list is the review's stopping condition, and exhaustion is not.",
         "only through `<skill-dir>/scripts/set_state.py`, never by hand",
         "the cheap repair lane",
+        "it is the phase's gate on the matrix",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -208,6 +209,8 @@ def main() -> int:
         "exactly as if the two lenses had run serially",
         "a blocking review whose every finding is `bounded-mechanical`",
         "The cheap repair lane's round count is per scope",
+        "the first queued leaf of a measurement phase is a short real smoke",
+        "Detectability beats provability here",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -259,6 +262,11 @@ def main() -> int:
     require(
         "A frozen artifact is append-never once a gate arms on it" in phase_planner,
         "phase-planner.md missing phrase: A frozen artifact is append-never once a gate arms on it",
+        errors,
+    )
+    require(
+        "That smoke leaf is the" in phase_planner,
+        "phase-planner.md missing phrase: That smoke leaf is the",
         errors,
     )
 

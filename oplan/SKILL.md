@@ -250,8 +250,9 @@ exact line `VERDICT: ship`, and `validate_run.py` is the only plan gate.
 
 Under `work_mode: experiment` the plan is a run matrix, measurement leaves are validated by the
 existence and integrity of their artifacts, and a fresh planner decides the next arm between leaves
-from the recorded results. See [state-and-records.md](references/state-and-records.md) for the full
-experiment contract.
+from the recorded results. The first queued leaf of a measurement phase is a short real smoke run,
+and it is the phase's gate on the matrix. See [state-and-records.md](references/state-and-records.md)
+for the full experiment contract.
 
 ## 7. Optional `grill-me` escalation
 
