@@ -216,12 +216,18 @@ def main() -> int:
         "is the run's mechanical dispatch tally",
         "never per accepted leaf",
         "duplicates a phase acceptance command is a validation error",
+        "derived from the immutable per-attempt artifacts `attempts/system-reviewer-<scope>-a<N>.report`",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
     require(
         "python3 <skill-dir>" not in state_and_records,
         "state-and-records.md: obsolete contract remains: python3 <skill-dir>",
+        errors,
+    )
+    require(
+        "derived from the immutable `reviews/` artifacts" not in state_and_records,
+        "state-and-records.md: obsolete contract remains: derived from the immutable `reviews/` artifacts",
         errors,
     )
 

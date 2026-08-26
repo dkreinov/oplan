@@ -540,9 +540,11 @@ perform at that event if no wait rule existed, that is the unconditional row for
 human answer clears every listed reason.
 
 The cheap repair lane's round count is per scope — one leaf step, or one phase gate — and is
-derived from the immutable `reviews/` artifacts, never from memory. A reviewer that cannot name
-exactly one already-sealed leaf control whose write set contains every path its fix touches has
-by definition found a `design-level` finding, whatever it believes about the fix's size.
+derived from the immutable per-attempt artifacts `attempts/system-reviewer-<scope>-a<N>.report`,
+never from memory; a `reviews/` system artifact is written to one unversioned path per scope and
+cannot bound the lane. A reviewer that cannot name exactly one already-sealed leaf control whose
+write set contains every path its fix touches has by definition found a `design-level` finding,
+whatever it believes about the fix's size.
 
 `RUN_FINAL_GATE` is the final phase's close gate and one of the run's two concurrent actions —
 the other is the `SPAWN_RESEARCH_AGENTS` fan-out below. Its
