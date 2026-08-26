@@ -104,6 +104,7 @@ def main() -> int:
         "only through `<skill-dir>/scripts/set_state.py`, never by hand",
         "the cheap repair lane",
         "it is the phase's gate on the matrix",
+        "every dispatch appends one timestamped `dispatch` line to the journal",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -211,6 +212,8 @@ def main() -> int:
         "The cheap repair lane's round count is per scope",
         "the first queued leaf of a measurement phase is a short real smoke",
         "Detectability beats provability here",
+        "is the run's mechanical dispatch tally",
+        "never per accepted leaf",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)
@@ -320,6 +323,11 @@ def main() -> int:
     require(
         "WHAT IT AFFECTS:" in human_report,
         "human-report.md missing phrase: WHAT IT AFFECTS:",
+        errors,
+    )
+    require(
+        "written at phase boundaries only" in human_report,
+        "human-report.md missing phrase: written at phase boundaries only",
         errors,
     )
 

@@ -764,6 +764,15 @@ phase close append acceptance, curation including the curator's reported `MATERI
 interventions, cost by role, and harness context size or
 `unavailable`. `STATUS.md` is current state only; `briefing.md` is append-only history.
 
+Append one `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` line to `journal.md`
+for every dispatch of every role, where `<n>` is a monotonic run-scoped counter starting at 1
+and both timestamps use the exact form `YYYY-MM-DDTHH:MM:SSZ`. The number of files matching
+`attempts/*.agent` is the run's mechanical dispatch tally, so a grader can cross-check the
+journal against the filesystem without reading a transcript. `STATUS.md` and `briefing.md` are
+written at phase boundaries only — once at the phase briefing and once at the phase report — and
+never per accepted leaf; per-leaf history stays in `journal.md` and per-leaf state stays in
+`phase-state.md`, both of which keep their existing cadence.
+
 On resume, read `phase-state.md` first, verify `LAST_ACCEPTED` and all relevant seals, explain any
 in-flight candidate from its control record, then perform `NEXT_ACTION`. Under `commit_mode: none`,
 also run `<python> <skill-dir>/scripts/worktree_guard.py verify-accepted <git-root> <workspace>/attempts/accepted-state.json`

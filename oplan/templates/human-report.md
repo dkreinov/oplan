@@ -6,6 +6,10 @@
 Every line in these blocks must lead with what happened and why it matters in ordinary words.
 Run-internal vocabulary — leaf IDs, D-numbers, seals, revisions — may follow but never leads.
 
+The phase briefing below and the phase report below are the only phase-boundary writes of
+`briefing.md` and the only points at which `STATUS.md` is rewritten: both are
+written at phase boundaries only.
+
 ## Before a phase
 
 ```text

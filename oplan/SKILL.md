@@ -352,8 +352,7 @@ For each completed leaf:
 6. Accept only after required gates pass. Under `commit_mode: auto`, stage and path-restricted
    commit exactly the control record's write set and update `LAST_ACCEPTED` to the full new commit
    SHA. Under `commit_mode: none`, update and verify the cumulative `attempts/accepted-state.json`
-   instead, and do not stage or commit. In both modes, append the journal, update `phase-state.md`,
-   and rewrite `STATUS.md`.
+   instead, and do not stage or commit. In both modes, append the journal and update `phase-state.md`.
 
 Both lenses are gated by `depth_profile`. The spec audit runs on every leaf under `paranoid` and
 `standard`, and on high-risk leaves only under `fast`. System review runs on high-risk leaves and
@@ -475,6 +474,8 @@ Track per leaf and phase:
 - structural flags and repair leaves;
 - diff size/churn as a warning signal, not a productivity target;
 - harness context size or `unavailable`—never estimate.
+
+`STATUS.md` and `briefing.md` are written at phase boundaries only, and every dispatch appends one timestamped `dispatch` line to the journal.
 
 ## 14. Resume
 
