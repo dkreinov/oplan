@@ -135,8 +135,8 @@ class ValidateRunTests(unittest.TestCase):
                     "revision": 1,
                     "name": "build",
                     "queue": ["control/1.1.json"],
-                    "acceptance": ["test -f output.txt"],
-                    "overall_acceptance": ["test -f output.txt"],
+                    "acceptance": ["test -s output.txt"],
+                    "overall_acceptance": ["test -r output.txt"],
                     "next_phase": None,
                     "plan_review": "reviews/phase-1-plan-r1.md",
                 },
@@ -1253,6 +1253,22 @@ class ValidateRunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("oplan run validation: PASS", result.stdout)
         self.assertNotIn("missing current accepted steps", result.stdout)
+
+
+    def test_scoped_leaf_validation_rejects_phase_acceptance_duplicate(self) -> None:
+        workspace = self.make_workspace()
+        phase_control = workspace / "control/phase-1.json"
+        data = json.loads(phase_control.read_text(encoding="utf-8"))
+        data["acceptance"] = ["test -f output.txt"]
+        phase_control.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        result = self.run_validator(workspace)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("duplicates a phase acceptance command", result.stdout + result.stderr)
+
+    def test_scoped_leaf_validation_allows_scoped_command(self) -> None:
+        workspace = self.make_workspace()
+        result = self.run_validator(workspace)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 def re_sub(pattern: str, replacement: str, text: str) -> str:

@@ -105,6 +105,7 @@ def main() -> int:
         "the cheap repair lane",
         "it is the phase's gate on the matrix",
         "every dispatch appends one timestamped `dispatch` line to the journal",
+        "rejects a leaf whose frozen validation duplicates a phase acceptance command",
     ]
     for phrase in required_phrases:
         require(phrase in text, f"missing load-bearing phrase: {phrase}", errors)
@@ -214,6 +215,7 @@ def main() -> int:
         "Detectability beats provability here",
         "is the run's mechanical dispatch tally",
         "never per accepted leaf",
+        "duplicates a phase acceptance command is a validation error",
     ]
     for phrase in state_and_records_phrases:
         require(phrase in state_and_records, f"state-and-records.md missing phrase: {phrase}", errors)

@@ -224,7 +224,7 @@ The phase plan is a tree, not a forced flat list. Recursively decompose until ev
 - has one goal and one bounded write set;
 - can be understood from one sealed packet;
 - contains no unresolved decision;
-- has a frozen mechanical validation;
+- has a frozen mechanical validation; `validate_run.py` rejects a leaf whose frozen validation duplicates a phase acceptance command.
 - names its dependent decision IDs;
 - is small enough for one inexpensive worker context.
 

@@ -415,6 +415,7 @@ def main() -> int:
     phase_control: dict[str, object] | None = None
     proposed_to_promote: set[str] = set()
     referenced_to_force: set[str] = set()
+    phase_acceptance_commands: set[str] = set()
     control_dir = workspace / "control"
     if control_dir.is_dir():
         for control_path in sorted(control_dir.glob("*.json")):
@@ -492,6 +493,14 @@ def main() -> int:
                     ):
                         errors.append(f"{phase_rel}: overall_acceptance must contain command strings")
                         overall = []
+                    if isinstance(acceptance, list):
+                        phase_acceptance_commands.update(
+                            command.strip() for command in acceptance if isinstance(command, str)
+                        )
+                    if isinstance(overall, list):
+                        phase_acceptance_commands.update(
+                            command.strip() for command in overall if isinstance(command, str)
+                        )
                     next_phase = phase_control.get("next_phase")
                     if next_phase is None:
                         if not overall:
@@ -648,6 +657,8 @@ def main() -> int:
         validation = control.get("validation")
         if not isinstance(validation, str) or not validation.strip():
             errors.append(f"{label}: validation must be nonempty")
+        if isinstance(validation, str) and validation.strip() in phase_acceptance_commands:
+            errors.append(f"{label}: validation duplicates a phase acceptance command: {validation.strip()!r}")
         risk = control.get("risk")
         if risk not in {"low", "high"}:
             errors.append(f"{label}: risk must be low or high")
