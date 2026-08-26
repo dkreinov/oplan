@@ -43,6 +43,15 @@ Attack these failure classes:
     already armed on — append-never: a gate pins one of its properties — is the same finding, even when the
     edit looks harmless — ask not only "can this change a number?" but "can this change any
     property the gate pins, such as ordering or timestamps?"
+13. a rule or a demand is wider than the reason recorded for it. Every other class checks
+    conformance downward; this one asks what an artifact costs outside the case that motivated it.
+    (a) A `D-###` this phase adds or relies on forbids work its own `Why` does not reach, or its
+    `Scope` or in-force condition has expired — a `decision` finding whose fix is a narrowing
+    successor, never a human gate. (b) A packet orders an artifact the records already say its
+    destination refuses — a file over a recorded per-blob size limit, a secret, a path a recorded
+    constraint excludes — or asks for evidence without naming its retention form: a `boundary`
+    finding. A packet can be perfectly conformant to the plan and still order something the world
+    rejects, and no later gate looks.
 
 ## Materiality
 

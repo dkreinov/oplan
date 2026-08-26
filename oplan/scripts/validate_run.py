@@ -399,10 +399,14 @@ def main() -> int:
             if status == "missing":
                 errors.append(f"design.md: {decision} has no legal Status")
     in_force = set(re.findall(r"\bD-\d{3}\b", state.get("DECISIONS_IN_FORCE", "")))
+    # A superseded decision is one being retired by an amendment: it stays legal in
+    # DECISIONS_IN_FORCE until the next --seal drops it, so that marking a decision
+    # superseded is a legal move instead of a validation deadlock.
+    retired = {decision for decision, status in decisions.items() if status == "superseded"}
     for decision in in_force:
         if decision not in decisions:
             errors.append(f"phase-state.md: DECISIONS_IN_FORCE references undefined {decision}")
-        elif decisions[decision] not in {"approved", "amended"}:
+        elif decisions[decision] not in {"approved", "amended", "superseded"}:
             errors.append(f"phase-state.md: DECISIONS_IN_FORCE includes non-approved {decision}")
 
     controls: list[tuple[Path, dict[str, object]]] = []
@@ -779,7 +783,7 @@ def main() -> int:
                 return 1
             atomic_write(design_path, design_text)
         state_text = state_path.read_text(encoding="utf-8")
-        active = sorted(in_force | referenced_to_force)
+        active = sorted((in_force | referenced_to_force) - retired)
         state_text = re.sub(
             r"^DECISIONS_IN_FORCE:.*$",
             f"DECISIONS_IN_FORCE: {', '.join(active) if active else 'none'}",

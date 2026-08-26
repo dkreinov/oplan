@@ -34,7 +34,13 @@ what an earlier agent probably meant.
 3. Recursively decompose the phase until each leaf has one bounded goal, one exhaustive write set,
    one frozen mechanical validation, and no design choice left for its executor.
 4. Decide implementation choices that remain inside approved intent. Add stable `D-###` entries
-   to `design.md` and reference them from every dependent leaf.
+   to `design.md` and reference them from every dependent leaf. Write each decision's `Scope` line
+   by asking the one question that is free now and costs a whole stage later: what does this forbid
+   that its `Why` did not intend to forbid? Narrow the statement, or record that exclusion in
+   `Scope`, until the answer is nothing. An approved decision that blocks your phase for a reason
+   its own `Why` does not reach is a defect in that decision, not a blocker and not a wall to plan
+   around: write the narrowing successor defined in `references/state-and-records.md` section 3 and
+   carry on planning. Never escalate it to the human.
 5. Mark each leaf `risk: low|high` with a reason. Public APIs/schemas, persistence, migration,
    security, concurrency, money, irreversible changes, cross-module behavior, and user-flow state
    transitions are high risk. Creative or natural-language content (prose, narration, UX copy,
@@ -46,7 +52,12 @@ what an earlier agent probably meant.
 6. Write each complete leaf to `{{workspace}}/packets/<step-id>.md` using
    `{{skill_dir}}/templates/executor-packet.md`.
 7. Write its small machine control record to `{{workspace}}/control/<step-id>.json` using the
-   schema in `references/state-and-records.md`. The packet and control record must agree. Set
+   schema in `references/state-and-records.md`. The packet and control record must agree. When a
+   leaf retains evidence, its retention form is your choice and belongs in the write set: a small
+   record of path, `sha256` and byte size, unless the raw artifact is small enough for every
+   destination the records already constrain — a recorded remote's per-blob size limit, for
+   example. "Commit the evidence" with no retained form named is an undecided choice, and the
+   executor will settle it the expensive and irreversible way. Set
    `wall_time_minutes` generously from the leaf's size and validation cost; it is a stuck-agent
    cancellation boundary, not a performance target. Scope a leaf's frozen validation to the
    behavior its write set can change — the narrowest command that still proves the leaf — because

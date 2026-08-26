@@ -272,6 +272,8 @@ Use stable decision IDs in `design.md`:
 Status: proposed | approved | amended | superseded
 Decision: <one unambiguous statement>
 Why: <reason/trade-off>
+Scope: <what this binds — and, when the statement reads wider than its reason, what it does NOT
+forbid> — in force until <the condition that ends it> or `permanent`
 Decided by: planner | human answer recorded at <blocker path>
 Evidence: <source path>
 Affected phases/packets: <list>
@@ -286,6 +288,16 @@ phase-structure decision, for example — stays `proposed` forever and can never
 `DECISIONS_IN_FORCE`, so the planner must reference every decision from at least one leaf control
 or record phase-shape reasoning in `plan.md` prose instead of a `D-###`. Never silently edit an approved decision.
 Add an amendment/successor and replan every unaccepted descendant that depends on it.
+
+A decision binds only inside its recorded `Scope`. Work the `Scope` does not name is ungoverned by
+it and needs no amendment, so a reader may not widen a rule to everything its wording could reach.
+When a decision would forbid work its own `Why` does not reach, or its recorded in-force condition
+has expired, that is a defect in the decision — not a human question and not a wall. The planner
+writes a narrowing successor (`Status: proposed`, `Supersedes: <D-###>`) restating the rule at the
+width its reason supports, marks the old decision `superseded`, and references the successor from a
+leaf control; plan review ships it on the normal path, and `--seal` promotes the successor and drops
+the superseded ID from `DECISIONS_IN_FORCE`, which is why that list is not monotonic. No control in
+the active queue may reference a superseded decision.
 
 ## 4. Plan, control records, and seals
 

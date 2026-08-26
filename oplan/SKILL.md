@@ -69,8 +69,11 @@ Each lowering step must preserve meaning. The files are the memory and the evide
    only inside the run workspace.
 5. **Planner owns decisions.** Workers never choose names, formats, defaults, architecture, or
    product behavior. If a packet does not decide something needed, stop the leaf and return it.
-6. **Stable decision IDs.** Record design decisions as `D-001`, `D-002`, ... in `design.md`.
-   Every packet lists the IDs it depends on. Conflicting interpretations are a plan defect.
+6. **Stable, scoped decision IDs.** Record design decisions as `D-001`, `D-002`, ... in `design.md`.
+   Every decision records the `Scope` it binds and governs nothing outside it. A decision that
+   forbids work its own recorded reason does not reach is narrowed by a successor on the planning
+   path, never escalated to the human and never worked around. Every packet lists the IDs it
+   depends on. Conflicting interpretations are a plan defect.
 7. **No self-certification.** A worker's validation line is evidence for debugging, not
    acceptance. The harness reruns the frozen check and independent reviewers inspect the result.
 8. **Crash-only memory.** If a fact needed to resume exists only in an agent's head, stop and

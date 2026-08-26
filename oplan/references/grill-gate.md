@@ -23,11 +23,14 @@ first briefing.
 |---|---|---|
 | Repository or documentation fact | research agent | Use `templates/research-agent.md`; write cited evidence; replan cleanly |
 | Implementation choice within approved intent | phase planner | Decide, add `D-###`, and finish the plan |
+| An approved `D-###` forbids work its own `Why` does not reach, or its in-force condition expired | phase planner | Write the narrowing successor (`Supersedes:`, old one `superseded`); plan review ships it on the normal path |
 | Material product/scope/UX/acceptance trade-off | human via `grill-me` | Ask one question at a time with a recommendation |
 | Permission, credentials, destructive or irreversible action | human authority gate | Ask directly; do not turn it into a long interview |
 
 Do not invoke `grill-me` for failing tests, code uncertainty, naming that the planner owns,
-researchable facts, or every routine phase boundary.
+researchable facts, a decision that reads wider than the reason it records, or every routine phase
+boundary. A recorded decision is a safeguard, not an authority: narrowing one back to its own
+stated reason is planning work, and stopping the run to ask permission for it is the defect.
 
 ### Installed skill path
 
