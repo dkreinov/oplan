@@ -22,8 +22,9 @@ additionally produces a run workspace that the graders below can score mechanica
 1. Point `OPLAN_SMOKE_WORKSPACE` at the run's `.oplan/<run>` workspace directory (the folder
    containing `journal.md`, `attempts/`, and `logs/`).
 2. Optionally set `OPLAN_SMOKE_DISPATCH_CEILING` (default `40`),
-   `OPLAN_SMOKE_SUITE_CEILING` (default `4`) and `OPLAN_SMOKE_COST_CEILING_USD`
-   (default `40.0`) to override the default ceilings.
+   `OPLAN_SMOKE_SUITE_FLOOR` (default `2`), `OPLAN_SMOKE_SUITE_CEILING` (default `4`) and
+   `OPLAN_SMOKE_COST_CEILING_USD` (default `40.0`) to override the defaults. Set the suite FLOOR
+   deliberately — see below; leaving it at the default is what lets a missed gate pass unnoticed.
 3. Run:
 
    ```text
@@ -54,32 +55,44 @@ exercise `grade_cost_ceiling` directly against synthetic JSON, independent of `a
 | Grader function | What it asserts | `claude plugin eval` grader type |
 |---|---|---|
 | `grade_dispatch_count` | The count of `attempts/*.agent` files is at or below a ceiling | `count` |
-| `grade_full_suite_runs` | The number of recorded full-suite gate runs is at least one and at or below a ceiling, and the count is reported as a metric | `count` |
-| `grade_dispatch_timestamps` | Every `journal.md` line opening with `dispatch` and a number fully matches the exact `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` form | `regex` |
+| `grade_full_suite_runs` | The number of distinct full-suite gate runs falls between a floor and a ceiling, and the count is reported as a metric | `count` |
+| `grade_dispatch_timestamps` | Every `journal.md` line claiming to be a metrics line — opening with `dispatch ` followed by a number, or containing a `start=` field — fully matches the exact `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` form | `regex` |
 | `grade_cost_ceiling` | The `total_usd` figure in a JSON cost report is at or below a ceiling | `baseline` |
 
-### How a full-suite run is counted, and why not by command text
+### How a full-suite run is counted, and why the floor matters more than the ceiling
 
-The harness records a gate run in two different shapes, and `grade_full_suite_runs` reads both:
+Searching every `logs/` file for the command text cannot see a phase gate at all: phase-acceptance
+logs hold pytest **output only**, and the harness never echoes the command into them. That was this
+grader's original defect.
 
-- `logs/<gate>-overall.result` and `logs/<gate>-overall-join.result` carry one
-  `"<exit code>  <command>"` line per command run at the final gate. The command text is matched
-  here.
-- `logs/<phase>-acceptance.log` carries pytest **output only** — the harness never echoes the
-  command into it — so a phase gate is identified by the `-acceptance` filename suffix instead.
+`grade_full_suite_runs` instead counts distinct gate runs, deduplicated by log stem so a gate that
+wrote both `<stem>.log` and `<stem>.result` counts once. A gate is recognised two ways:
 
-Searching every `logs/` file for the command text therefore cannot see a phase gate at all. That
-was this grader's original defect: it scored a real workspace false for a convention reason rather
-than a defect.
+- a `.result` line `"<exit code>  <command>"` whose command matches. This is the only shape any
+  contract pins, and only for the final gate (`state-and-records.md` section 5).
+- a `.log` whose **stem** carries an acceptance or overall marker **and** whose **content** reports
+  a suite result. Both are required: the name alone would count a gate's `validate_run.py` and
+  contract-validator legs, which are not suite runs, and the content alone would count leaf
+  validation logs, which are also not suite runs.
 
-The `-acceptance` suffix is a harness convention, not a contract. A harness that renames its
-acceptance logs will be under-counted here, and this grader fails closed rather than silently
-passing.
+**No contract pins a phase-acceptance log path.** The four real workspaces under `.oplan/` use four
+different schemes — `phase-1-acceptance.log`, `phase-1-acceptance2-pytest.log`, `acc-pytest.log`,
+`overall-pytest.log`. The stem pattern is the empirical union of those, and a fifth scheme would
+defeat it.
 
-The count is graded against a ceiling rather than an exact number, because no exact number is right
+That is why there is a **floor**, and it is the more important of the two bounds. A ceiling alone
+forgives a missed gate silently — an unrecognised run is always "at or below" the ceiling, so one
+recognised run would excuse any number of missed ones and the grader would report a confidently
+wrong benchmark metric. The floor turns under-detection into a loud failure. Set
+`OPLAN_SMOKE_SUITE_FLOOR` to the number of gate runs the run actually spent: one per phase-control
+revision that reached acceptance, plus one for the final gate.
+
+A nonzero exit code still counts. A failed gate run consumed the same wall-clock and dollars, and
+filtering on success would bias the benchmark toward whichever harness version fails more.
+
+The count is graded against a range rather than an exact number, because no exact number is right
 for more than one task shape: a run of N phases spends N phase-gate runs plus one final-gate run,
-and a repaired phase re-runs its own gate. The three-phase scenario above spends four. Read the
-reported count as the metric; the ceiling only catches a run that has lost the plot.
+and a repaired phase re-runs its own gate. Read the reported count as the metric.
 
 ### Grading a workspace that predates a rule
 

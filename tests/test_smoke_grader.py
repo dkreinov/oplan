@@ -13,22 +13,44 @@ DISPATCH_LINE_RE = re.compile(
     r"end=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
 )
 
-# A line is a CANDIDATE D-005 metrics line when it opens with "dispatch " and a
-# number. Selecting on the bare "dispatch " prefix also matches wrapped prose in
-# journal.md -- a real journal wrapped the sentence "...every dispatch appends one
-# timestamped `dispatch` line to the journal." onto a line starting with
-# "dispatch appends", which was then graded as a malformed metrics line. The digit
-# is what separates a metrics line from a sentence; strict validation of the
-# candidates still happens against DISPATCH_LINE_RE, so a genuinely malformed
-# metrics line is still caught rather than skipped.
-DISPATCH_CANDIDATE_RE = re.compile(r"^dispatch \d+\b")
-
 # A .result line is "<exit code>  <command>" -- two spaces between the fields.
 RESULT_LINE_RE = re.compile(r"^\d+ {2}(?P<command>.+)$")
 
-# Phase-gate acceptance logs are identified by this filename suffix. See the
-# grade_full_suite_runs docstring for why the command text cannot be used.
-ACCEPTANCE_LOG_SUFFIX = "-acceptance"
+# A gate log's STEM carries an acceptance or overall marker. No contract pins a
+# phase-acceptance log path, so this pattern is empirical: it is the union of
+# what the four real run workspaces under .oplan/ actually name their gate logs
+# -- "phase-1-acceptance", "phase-1-acceptance2-pytest", "acc-pytest",
+# "acc2-pytest", "overall-pytest", "phase-1-r2-overall". Leaf validation logs
+# ("1.1", "1.4") carry no such marker.
+GATE_LOG_STEM_RE = re.compile(r"(?:^|-)(?:acc(?:eptance)?|overall)\d*(?:-|$)")
+
+# Evidence inside a log that a test suite actually ran and reported a result.
+# A gate log must match this as well as GATE_LOG_STEM_RE, which is what keeps
+# "phase-1-r2-overall-join.log" (the validate_run.py leg) and
+# "acc-contracts.log" (the contract-validator leg) from being counted as suite
+# runs even though their names carry a gate marker.
+SUITE_OUTPUT_RE = re.compile(r"\b\d+ (?:passed|failed|error|errors)\b|\bno tests ran\b")
+
+
+def _is_dispatch_candidate(line: str) -> bool:
+    """Is this line CLAIMING to be a D-005 metrics line?
+
+    Selecting candidates on the bare ``"dispatch "`` prefix matches wrapped prose:
+    a real journal wrapped "...every dispatch appends one timestamped `dispatch`
+    line to the journal." onto a line beginning "dispatch appends", which was then
+    graded as a malformed metrics line.
+
+    Requiring a digit instead is worse, not better -- it lets a line that DROPPED
+    its counter escape validation entirely, turning a loud failure into silence,
+    and the counter is half of what D-005 requires. So a line qualifies on either
+    signal: a leading number, or the presence of a ``start=`` field. Prose has
+    neither; every malformed metrics line has at least one, and is then judged
+    strictly against DISPATCH_LINE_RE.
+    """
+    prefix = "dispatch "
+    if not line.startswith(prefix):
+        return False
+    return line[len(prefix):][:1].isdigit() or "start=" in line
 
 
 def grade_dispatch_count(workspace: Path, ceiling: int) -> tuple[bool, str]:
@@ -42,57 +64,74 @@ def grade_dispatch_count(workspace: Path, ceiling: int) -> tuple[bool, str]:
     return False, f"{count} attempts/*.agent files exceeds ceiling {ceiling}"
 
 
-def grade_full_suite_runs(workspace: Path, command: str, ceiling: int = 4) -> tuple[bool, str]:
+def grade_full_suite_runs(
+    workspace: Path, command: str, floor: int = 2, ceiling: int = 4
+) -> tuple[bool, str]:
     """Maps onto a `claude plugin eval` `count` grader.
 
-    Counts full-suite runs from the two places the harness actually records one:
+    Counts the distinct gate runs of the full suite, deduplicated by log stem so
+    a gate that wrote both ``<stem>.log`` and ``<stem>.result`` counts once.
 
-    * ``logs/<gate>-overall.result`` and ``logs/<gate>-overall-join.result``,
-      which carry one ``"<exit code>  <command>"`` line per command run at the
-      final gate. The command text is matched here.
-    * ``logs/<phase>-acceptance.log``, which carries pytest OUTPUT only -- the
-      harness never echoes the command into it -- so a phase gate is identified
-      by the ``-acceptance`` filename suffix instead.
+    A gate run is recognised two ways:
+
+    * a ``.result`` file line ``"<exit code>  <command>"`` whose command matches.
+      This is the only shape any contract pins, and only for the final gate.
+    * a ``.log`` file whose STEM carries an acceptance/overall marker AND whose
+      CONTENT reports a suite result. Both are required. The name alone counts
+      the validate_run.py and contract-validator legs of a gate, which are not
+      suite runs; the content alone counts leaf validation logs, which are also
+      not suite runs.
 
     Searching every ``logs/`` file for the command text, as this grader
-    originally did, can therefore never see a phase gate at all.
+    originally did, can never see a phase gate at all: phase-acceptance logs hold
+    output only.
 
-    The result is graded against a ceiling rather than an exact count, and the
-    count is always reported so it can be used as a benchmark metric. An exact
-    count cannot be right for more than one task shape: a run of N phases spends
-    N phase-gate runs plus one final-gate run, and a repaired phase re-runs its
-    own gate, so the correct number varies per task and per run.
+    **Why there is a floor.** No contract pins a phase-acceptance log path, and
+    the four real workspaces under ``.oplan/`` use four different naming schemes.
+    Name-based detection therefore cannot be trusted to find every gate, and a
+    ceiling ALONE forgives that silently -- a missed gate is always "at or below"
+    the ceiling, so one recognised run would excuse any number of missed ones and
+    the grader would report a confidently wrong benchmark metric. The floor is
+    what makes under-detection loud. Pass the number of gate runs the run is
+    known to have spent: N phase-control revisions that reached acceptance, plus
+    one final gate.
 
-    A count of zero fails: a completed run always runs its suite at least once.
+    A nonzero exit code still counts. A failed gate run consumed the same
+    wall-clock and dollars, and filtering on success would bias the benchmark
+    toward whichever harness version fails more.
 
-    Known limitation: the ``-acceptance`` suffix is a harness convention, not a
-    contract. A harness that renames its acceptance logs will be under-counted
-    here, and this grader will fail closed rather than silently pass.
+    The count is graded against a range rather than an exact number: a run of N
+    phases spends N phase-gate runs plus one final-gate run, and a repaired phase
+    re-runs its own gate, so no single number is right for more than one task.
     """
     logs_dir = workspace / "logs"
     if not logs_dir.is_dir():
         return False, f"no logs/ directory under {workspace}"
-    gate_runs: list[str] = []
+    gate_stems: dict[str, str] = {}
     for log_path in sorted(logs_dir.iterdir()):
         if not log_path.is_file():
             continue
+        try:
+            text = log_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
         if log_path.suffix == ".result":
-            try:
-                text = log_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
-                continue
             for line in text.splitlines():
                 match = RESULT_LINE_RE.match(line)
                 if match and match.group("command").strip() == command:
-                    gate_runs.append(log_path.name)
-        elif log_path.suffix == ".log" and log_path.stem.endswith(ACCEPTANCE_LOG_SUFFIX):
-            gate_runs.append(log_path.name)
-    count = len(gate_runs)
-    detail = ", ".join(gate_runs) if gate_runs else "none"
-    if count == 0:
-        return False, f"'{command}' has no recorded full-suite run in {logs_dir}"
+                    gate_stems.setdefault(log_path.stem, log_path.name)
+        elif log_path.suffix == ".log":
+            if GATE_LOG_STEM_RE.search(log_path.stem) and SUITE_OUTPUT_RE.search(text):
+                gate_stems.setdefault(log_path.stem, log_path.name)
+    count = len(gate_stems)
+    detail = ", ".join(sorted(gate_stems.values())) if gate_stems else "none"
+    if count < floor:
+        return False, (
+            f"{count} full-suite run(s) is below the floor of {floor} -- either the run "
+            f"skipped a gate or this grader failed to recognise one in {logs_dir}: {detail}"
+        )
     if count <= ceiling:
-        return True, f"{count} full-suite run(s) at or below ceiling {ceiling}: {detail}"
+        return True, f"{count} full-suite run(s) within floor {floor} and ceiling {ceiling}: {detail}"
     return False, f"{count} full-suite run(s) exceeds ceiling {ceiling}: {detail}"
 
 
@@ -105,9 +144,7 @@ def grade_dispatch_timestamps(workspace: Path) -> tuple[bool, str]:
         text = journal_path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError) as exc:
         return False, f"journal.md is not readable UTF-8 text: {exc}"
-    dispatch_lines = [
-        line for line in text.splitlines() if DISPATCH_CANDIDATE_RE.match(line)
-    ]
+    dispatch_lines = [line for line in text.splitlines() if _is_dispatch_candidate(line)]
     if not dispatch_lines:
         return False, "journal.md has no dispatch lines"
     bad = [line for line in dispatch_lines if not DISPATCH_LINE_RE.fullmatch(line)]
@@ -253,6 +290,137 @@ class SmokeGraderFixtureTests(unittest.TestCase):
             )
             self.assertFalse(passed, message)
 
+    # The four real run workspaces under .oplan/ name their gate logs four
+    # different ways, because no contract pins a phase-acceptance log path.
+    # Each fixture below replicates one of them verbatim.
+
+    def _write(self, logs: Path, name: str, text: str) -> None:
+        (logs / name).write_text(text, encoding="utf-8")
+
+    PYTEST_TAIL = "128 passed, 9 skipped in 265.69s (0:04:25)\n"
+    CONTRACTS_TAIL = "oplan contract validation: PASS (490 SKILL.md lines, 15 resources)\n"
+    VALIDATE_TAIL = "oplan run validation: PASS (6 controls, 8 decisions)\n"
+    COMMAND = "python -m pytest tests -q"
+
+    def test_full_suite_runs_counts_speed_run_convention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-1-r2-acceptance.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-1-r2-overall.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-1-r2-overall.result", f"0  {self.COMMAND}\n")
+            # The join leg runs validate_run.py, not the suite. Not a suite run.
+            self._write(logs, "phase-1-r2-overall-join.log", self.VALIDATE_TAIL)
+            self._write(
+                logs,
+                "phase-1-r2-overall-join.result",
+                "0  python oplan/scripts/validate_run.py .oplan/speed-run\n",
+            )
+            # Leaf validation logs, including one whose output is a pytest tail.
+            self._write(logs, "1.1.log", self.CONTRACTS_TAIL)
+            self._write(logs, "1.4.log", "2 passed, 77 deselected in 4.07s\n")
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=3, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("3 full-suite run(s)", message)
+
+    def test_full_suite_runs_counts_codex_salvage_convention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-1-acceptance2-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-1-acceptance-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "phase-1-acceptance2-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "overall-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "overall-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "overall-validate-run.log", self.VALIDATE_TAIL)
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=3, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("3 full-suite run(s)", message)
+
+    def test_full_suite_runs_counts_acc_prefix_convention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "acc-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "acc2-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "overall-pytest.log", self.PYTEST_TAIL)
+            self._write(logs, "acc-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "acc2-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "overall-contracts.log", self.CONTRACTS_TAIL)
+            self._write(logs, "acc-sibling.log", self.VALIDATE_TAIL)
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=3, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("3 full-suite run(s)", message)
+
+    def test_full_suite_runs_fails_loudly_when_it_finds_fewer_than_the_floor(self) -> None:
+        """The defect this replaced: under-counting was silently forgiven.
+
+        A ceiling alone cannot catch a missed gate log -- fewer is always 'at or
+        below'. One recognised run must not excuse three unrecognised ones.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            # Three real gate runs under a naming scheme the grader cannot see,
+            # plus one it can.
+            self._write(logs, "gate-alpha.log", self.PYTEST_TAIL)
+            self._write(logs, "gate-beta.log", self.PYTEST_TAIL)
+            self._write(logs, "gate-gamma.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-3-overall.result", f"0  {self.COMMAND}\n")
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=4, ceiling=4
+            )
+            self.assertFalse(passed, message)
+            self.assertIn("below the floor", message)
+
+    def test_full_suite_runs_counts_a_failed_suite_run(self) -> None:
+        """A failed gate run cost the same wall-clock and dollars. Count it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance.log", "3 failed, 125 passed in 260s\n")
+            self._write(logs, "phase-1-overall.result", f"1  {self.COMMAND}\n")
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=2, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("2 full-suite run(s)", message)
+
+    def test_dispatch_timestamps_catches_line_missing_its_counter(self) -> None:
+        """D-005 requires a monotonic counter AND both stamps.
+
+        A line that drops the counter must not escape validation by failing the
+        candidate filter -- that would turn a loud failure into silence.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / "journal.md").write_text(
+                "dispatch 1 executor start=2026-08-26T09:00:00Z end=2026-08-26T09:04:00Z\n"
+                "dispatch executor start=2026-08-26T09:05:00Z end=2026-08-26T09:12:00Z\n",
+                encoding="utf-8",
+            )
+            passed, message = grade_dispatch_timestamps(workspace)
+            self.assertFalse(passed, message)
+
+    def test_dispatch_timestamps_catches_garbage_stamps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / "journal.md").write_text(
+                "dispatch 1 executor start=2026-08-26T09:00:00Z end=2026-08-26T09:04:00Z\n"
+                "dispatch  2 executor start=nope end=nope\n",
+                encoding="utf-8",
+            )
+            passed, message = grade_dispatch_timestamps(workspace)
+            self.assertFalse(passed, message)
+
     def test_dispatch_timestamps_ignores_prose_beginning_with_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
@@ -300,7 +468,10 @@ class SmokeGraderLiveTests(unittest.TestCase):
     DEFAULT_DISPATCH_CEILING = 40
     DEFAULT_COST_CEILING_USD = 40.0
     # A three-phase scenario spends three phase-gate runs plus one final-gate
-    # run. Raise it for a longer task or a run whose phase was repaired.
+    # run. Raise the ceiling for a longer task or a run whose phase was repaired.
+    # The floor is what makes a gate this grader failed to RECOGNISE loud rather
+    # than silent -- set it to the number of gate runs the run actually spent.
+    DEFAULT_SUITE_FLOOR = 2
     DEFAULT_SUITE_CEILING = 4
 
     def live_workspace(self) -> Path:
@@ -317,12 +488,15 @@ class SmokeGraderLiveTests(unittest.TestCase):
         passed, message = grade_dispatch_count(workspace, ceiling)
         self.assertTrue(passed, message)
 
-    def test_full_suite_runs_within_ceiling(self) -> None:
+    def test_full_suite_runs_within_range(self) -> None:
         workspace = self.live_workspace()
+        floor = int(os.environ.get("OPLAN_SMOKE_SUITE_FLOOR", self.DEFAULT_SUITE_FLOOR))
         ceiling = int(
             os.environ.get("OPLAN_SMOKE_SUITE_CEILING", self.DEFAULT_SUITE_CEILING)
         )
-        passed, message = grade_full_suite_runs(workspace, self.FULL_SUITE_COMMAND, ceiling)
+        passed, message = grade_full_suite_runs(
+            workspace, self.FULL_SUITE_COMMAND, floor, ceiling
+        )
         self.assertTrue(passed, message)
 
     def test_dispatch_timestamps_are_well_formed(self) -> None:
