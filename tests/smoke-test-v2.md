@@ -55,9 +55,36 @@ exercise `grade_cost_ceiling` directly against synthetic JSON, independent of `a
 | Grader function | What it asserts | `claude plugin eval` grader type |
 |---|---|---|
 | `grade_dispatch_count` | The count of `attempts/*.agent` files is at or below a ceiling | `count` |
-| `grade_full_suite_runs` | The number of distinct full-suite gate runs falls between a floor and a ceiling, and the count is reported as a metric | `count` |
+| `grade_full_suite_runs` | **DISABLED — not fit for use.** See below | `count` |
 | `grade_dispatch_timestamps` | Every `journal.md` line claiming to be a metrics line — opening with `dispatch ` followed by a number, or containing a `start=` field — fully matches the exact `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` form | `regex` |
 | `grade_cost_ceiling` | The `total_usd` figure in a JSON cost report is at or below a ceiling | `baseline` |
+
+### `grade_full_suite_runs` is DISABLED — do not score a run with it
+
+Two independent adversarial reviews found it reporting confidently wrong counts, in both
+directions. Its live test is skipped, and `test_KNOWN_DEFECT_` tests pin the wrong behaviour so it
+cannot be mistaken for correct. The demonstrated defects:
+
+- **Over-counts.** A harness writing both `<gate>-overall.result` and `<gate>-overall-pytest.log` —
+  a merge of two conventions already present in the four real workspaces — counts each gate twice.
+- **Over-counts.** A leg running a *subset* of the suite (`2 passed, 77 deselected in 4.07s`) counts
+  identically to an 18-minute full-suite run; the content check never verifies which command
+  produced the output.
+- **Under-counts, silently.** A gate log truncated by a wall-time kill, or carrying a single
+  non-UTF-8 byte, is skipped with no signal at all.
+- **The floor cannot be set correctly.** The formula below gives 8 for `.oplan/depth-profiles`,
+  where the function counts 3.
+- **The `.result` branch is dead** against three of four real workspaces, whose gates run
+  `python -m pytest tests/ -q -p no:cacheprovider`, not the hardcoded command.
+
+Root cause: it reverse-engineers run structure from filenames while the workspace already records
+it. `control/phase-*.json` holds each gate's own `acceptance` and `overall_acceptance` command lists
+plus the revision history. The replacement should derive the expected count from those records; a
+benchmark harness under our own control should simply emit a machine-readable gate record. Both are
+a redesign, deliberately not attempted as a third patch on a function that has already been wrong
+twice.
+
+The rest of this section describes what the disabled function currently does, not what it should do.
 
 ### How a full-suite run is counted, and why the floor matters more than the ceiling
 

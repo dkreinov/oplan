@@ -16,6 +16,10 @@ DISPATCH_LINE_RE = re.compile(
 # A .result line is "<exit code>  <command>" -- two spaces between the fields.
 RESULT_LINE_RE = re.compile(r"^\d+ {2}(?P<command>.+)$")
 
+# A populated `start=` field: the "=" must be followed by a real value, not by
+# whitespace and not by the "<" that opens a format placeholder.
+START_FIELD_RE = re.compile(r"start=[^\s<]")
+
 # A gate log's STEM carries an acceptance or overall marker. No contract pins a
 # phase-acceptance log path, so this pattern is empirical: it is the union of
 # what the four real run workspaces under .oplan/ actually name their gate logs
@@ -50,7 +54,15 @@ def _is_dispatch_candidate(line: str) -> bool:
     prefix = "dispatch "
     if not line.startswith(prefix):
         return False
-    return line[len(prefix):][:1].isdigit() or "start=" in line
+    if line[len(prefix):][:1].isdigit():
+        return True
+    # `start=` must be followed by an actual value, not by whitespace or the
+    # `<` of a placeholder. Accepting a bare "start=" re-admits the very bug
+    # this function exists to fix: journal prose quoting the D-005 format
+    # (``dispatch <n> <role> start= end=``) would be graded as a malformed
+    # metrics line. .oplan/speed-run/journal.md contains both that quotation
+    # and a wrapped "dispatch appends..." line.
+    return bool(START_FIELD_RE.search(line))
 
 
 def grade_dispatch_count(workspace: Path, ceiling: int) -> tuple[bool, str]:
@@ -67,7 +79,42 @@ def grade_dispatch_count(workspace: Path, ceiling: int) -> tuple[bool, str]:
 def grade_full_suite_runs(
     workspace: Path, command: str, floor: int = 2, ceiling: int = 4
 ) -> tuple[bool, str]:
-    """Maps onto a `claude plugin eval` `count` grader.
+    """DISABLED -- NOT FIT FOR USE. Do not score a benchmark run with this.
+
+    Two independent reviews found this function reporting confidently wrong
+    counts, in both directions. The demonstrated defects, all still present:
+
+    * **Over-counts.** A harness that writes both ``<gate>-overall.result`` and
+      ``<gate>-overall-pytest.log`` -- a merge of two conventions already present
+      in the four real workspaces -- counts each gate twice. Two real gates are
+      reported as four, and it passes.
+    * **Over-counts.** A leg running a SUBSET of the suite
+      (``2 passed, 77 deselected in 4.07s``) is counted identically to an
+      18-minute full-suite run, because the content check never verifies WHICH
+      command produced the output.
+    * **Under-counts, silently.** A gate log truncated by a wall-time kill, or
+      carrying one non-UTF-8 byte, is skipped with no signal.
+    * **The floor cannot be set correctly.** Its documented formula -- one per
+      phase-control revision plus one final gate -- gives 8 for
+      ``.oplan/depth-profiles``, where this function counts 3.
+    * **The ``.result`` branch is dead** against three of the four real
+      workspaces, whose gates run ``python -m pytest tests/ -q -p
+      no:cacheprovider`` rather than the hardcoded command. Every real count
+      today comes from the filename heuristic alone.
+
+    The root cause is that this function reverse-engineers run structure from
+    filenames while the workspace already records it: ``control/phase-*.json``
+    holds each gate's own ``acceptance``/``overall_acceptance`` command list and
+    the revision history. The replacement should derive the expected count from
+    those records rather than guess, and a benchmark harness under our own
+    control should simply emit a machine-readable gate record. Both are a
+    redesign, deliberately not attempted as a third patch.
+
+    ``test_full_suite_runs_within_range`` is skipped for this reason, and the
+    ``test_KNOWN_DEFECT_`` tests below pin the wrong behaviour so it stays
+    visible instead of being mistaken for correct.
+
+    What follows describes what it currently does, not what it should do.
 
     Counts the distinct gate runs of the full suite, deduplicated by log stem so
     a gate that wrote both ``<stem>.log`` and ``<stem>.result`` counts once.
@@ -394,6 +441,72 @@ class SmokeGraderFixtureTests(unittest.TestCase):
             self.assertTrue(passed, message)
             self.assertIn("2 full-suite run(s)", message)
 
+    def test_KNOWN_DEFECT_full_suite_runs_double_counts_split_gate_legs(self) -> None:
+        """Pinned wrong behaviour. Two real gates are reported as four.
+
+        Do not "fix" this test by changing the expectation -- fix the function,
+        which is disabled. See the grade_full_suite_runs docstring.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance.log", self.PYTEST_TAIL)
+            # One gate, recorded as a .result plus a separately-named leg log.
+            self._write(logs, "phase-1-overall.result", f"0  {self.COMMAND}\n")
+            self._write(logs, "phase-1-overall-pytest.log", self.PYTEST_TAIL)
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=2, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("3 full-suite run(s)", message)  # truth is 2
+
+    def test_KNOWN_DEFECT_full_suite_runs_counts_a_subset_run_as_a_full_one(self) -> None:
+        """Pinned wrong behaviour. A 4-second targeted run counts as a full suite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance.log", self.PYTEST_TAIL)
+            self._write(
+                logs, "phase-1-acceptance-unit.log", "2 passed, 77 deselected in 4.07s\n"
+            )
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=2, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("2 full-suite run(s)", message)  # truth is 1
+
+    def test_KNOWN_DEFECT_full_suite_runs_silently_skips_an_unreadable_log(self) -> None:
+        """Pinned wrong behaviour. A non-UTF-8 gate log vanishes with no signal."""
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            self._write(logs, "phase-1-acceptance.log", self.PYTEST_TAIL)
+            self._write(logs, "phase-2-acceptance.log", self.PYTEST_TAIL)
+            # cp1252 byte, plausible on this Windows host.
+            (logs / "phase-3-acceptance.log").write_bytes(
+                b"128 passed, 9 skipped \x93truncated\x94\n"
+            )
+            passed, message = grade_full_suite_runs(
+                Path(tmp), self.COMMAND, floor=2, ceiling=4
+            )
+            self.assertTrue(passed, message)
+            self.assertIn("2 full-suite run(s)", message)  # truth is 3
+
+    def test_dispatch_candidate_ignores_a_quoted_format_placeholder(self) -> None:
+        """Journal prose quoting the D-005 format must not be graded.
+
+        `.oplan/speed-run/journal.md` contains this exact shape.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / "journal.md").write_text(
+                "dispatch 1 executor start=2026-08-26T09:00:00Z end=2026-08-26T09:04:00Z\n"
+                "dispatch <n> <role> start= end= is the required form.\n",
+                encoding="utf-8",
+            )
+            passed, message = grade_dispatch_timestamps(workspace)
+            self.assertTrue(passed, message)
+
     def test_dispatch_timestamps_catches_line_missing_its_counter(self) -> None:
         """D-005 requires a monotonic counter AND both stamps.
 
@@ -489,6 +602,13 @@ class SmokeGraderLiveTests(unittest.TestCase):
         self.assertTrue(passed, message)
 
     def test_full_suite_runs_within_range(self) -> None:
+        self.skipTest(
+            "grade_full_suite_runs is DISABLED -- not fit for use. It over-counts "
+            "(stem-mismatched .log/.result pairs; subset-suite legs) and silently "
+            "under-counts (truncated or non-UTF-8 gate logs), and its floor cannot "
+            "be set correctly. See its docstring. Do not re-enable without deriving "
+            "the expected count from control/phase-*.json."
+        )
         workspace = self.live_workspace()
         floor = int(os.environ.get("OPLAN_SMOKE_SUITE_FLOOR", self.DEFAULT_SUITE_FLOOR))
         ceiling = int(
