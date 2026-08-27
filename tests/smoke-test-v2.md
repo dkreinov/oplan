@@ -21,8 +21,9 @@ additionally produces a run workspace that the graders below can score mechanica
 
 1. Point `OPLAN_SMOKE_WORKSPACE` at the run's `.oplan/<run>` workspace directory (the folder
    containing `journal.md`, `attempts/`, and `logs/`).
-2. Optionally set `OPLAN_SMOKE_DISPATCH_CEILING` (default `40`) and
-   `OPLAN_SMOKE_COST_CEILING_USD` (default `40.0`) to override the default ceilings.
+2. Optionally set `OPLAN_SMOKE_DISPATCH_CEILING` (default `40`),
+   `OPLAN_SMOKE_SUITE_CEILING` (default `4`) and `OPLAN_SMOKE_COST_CEILING_USD`
+   (default `40.0`) to override the default ceilings.
 3. Run:
 
    ```text
@@ -53,9 +54,40 @@ exercise `grade_cost_ceiling` directly against synthetic JSON, independent of `a
 | Grader function | What it asserts | `claude plugin eval` grader type |
 |---|---|---|
 | `grade_dispatch_count` | The count of `attempts/*.agent` files is at or below a ceiling | `count` |
-| `grade_full_suite_runs` | The full-suite command appears in `logs/` files exactly the expected number of times (2) | `regex`/`count` |
-| `grade_dispatch_timestamps` | Every `journal.md` line starting with `dispatch ` fully matches the exact `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` form | `regex` |
+| `grade_full_suite_runs` | The number of recorded full-suite gate runs is at least one and at or below a ceiling, and the count is reported as a metric | `count` |
+| `grade_dispatch_timestamps` | Every `journal.md` line opening with `dispatch` and a number fully matches the exact `dispatch <n> <role> start=<ISO-8601 UTC> end=<ISO-8601 UTC>` form | `regex` |
 | `grade_cost_ceiling` | The `total_usd` figure in a JSON cost report is at or below a ceiling | `baseline` |
+
+### How a full-suite run is counted, and why not by command text
+
+The harness records a gate run in two different shapes, and `grade_full_suite_runs` reads both:
+
+- `logs/<gate>-overall.result` and `logs/<gate>-overall-join.result` carry one
+  `"<exit code>  <command>"` line per command run at the final gate. The command text is matched
+  here.
+- `logs/<phase>-acceptance.log` carries pytest **output only** — the harness never echoes the
+  command into it — so a phase gate is identified by the `-acceptance` filename suffix instead.
+
+Searching every `logs/` file for the command text therefore cannot see a phase gate at all. That
+was this grader's original defect: it scored a real workspace false for a convention reason rather
+than a defect.
+
+The `-acceptance` suffix is a harness convention, not a contract. A harness that renames its
+acceptance logs will be under-counted here, and this grader fails closed rather than silently
+passing.
+
+The count is graded against a ceiling rather than an exact number, because no exact number is right
+for more than one task shape: a run of N phases spends N phase-gate runs plus one final-gate run,
+and a repaired phase re-runs its own gate. The three-phase scenario above spends four. Read the
+reported count as the metric; the ceiling only catches a run that has lost the plot.
+
+### Grading a workspace that predates a rule
+
+A grader fails when the run genuinely lacks what it grades, and that is correct rather than a
+grader defect. `grade_dispatch_timestamps` fails on any workspace produced by a harness that does
+not yet emit D-005 dispatch lines — including `.oplan/speed-run`, the run that introduced the rule,
+whose own harness ran the frozen previous contract. Do not treat that failure as a grader bug and
+do not soften the grader to hide it.
 
 `claude plugin eval` is early access and is not enabled on this account. Nothing in this
 repository, including this test file and its grader module, depends on `claude plugin eval`; the
